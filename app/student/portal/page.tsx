@@ -1,8 +1,9 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
+import { Download, Printer } from 'lucide-react';
 import { useERPStore } from '@/lib/store';
 import { ExamResultRecord, Student, StudentInvoice } from '@/lib/types';
 import {
@@ -18,6 +19,7 @@ import {
   resolveRoutinePeriodForStudent,
 } from '@/lib/academic-helpers';
 import { generateQrDataUrl } from '@/lib/qr';
+import { downloadMarksheetAsPdf, printMarksheetDocument } from '@/lib/marksheet-pdf';
 import MediaUploadInput from '@/components/admin/MediaUploadInput';
 import MarksheetDocument from '@/components/common/MarksheetDocument';
 
@@ -43,6 +45,8 @@ export default function StudentPortalPage() {
   >('transcript');
   const [selectedExamId, setSelectedExamId] = useState<string>('');
   const [qrCodeUrl, setQrCodeUrl] = useState('');
+  const [isDownloadingPdf, setIsDownloadingPdf] = useState(false);
+  const transcriptSheetRef = useRef<HTMLDivElement | null>(null);
 
   // Fee Payment Checkout State (Private inside Student Portal)
   const [selectedInvoiceId, setSelectedInvoiceId] = useState<string>('');
@@ -439,7 +443,11 @@ export default function StudentPortalPage() {
       </div>
 
       {/* Main Workspace */}
-      <main className="max-w-7xl mx-auto w-full px-4 sm:px-8 py-6 flex-1 space-y-6">
+      <main
+        className={`max-w-7xl mx-auto w-full px-4 sm:px-8 py-6 flex-1 space-y-6 ${
+          activeTab === 'transcript' ? 'marksheet-print-scroll' : ''
+        }`}
+      >
         {/* TAB 1: ACADEMIC TRANSCRIPT */}
         {activeTab === 'transcript' && !compiledResult && (
           <div className="rounded-3xl bg-white/80 p-8 text-center border border-outline-variant/20 text-xs text-on-surface-variant">
@@ -448,7 +456,7 @@ export default function StudentPortalPage() {
         )}
 
         {activeTab === 'transcript' && compiledResult && currentExam && (
-          <div className="space-y-6">
+          <div className="space-y-6 marksheet-print-host">
             <div className="flex flex-wrap items-center justify-between gap-3 no-print">
               <div className="flex items-center gap-2">
                 <span className="text-xs font-semibold text-on-surface-variant">Examination:</span>
@@ -464,18 +472,45 @@ export default function StudentPortalPage() {
                   ))}
                 </select>
               </div>
-              <button
-                type="button"
-                onClick={() => window.print()}
-                className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-primary-container text-on-primary text-xs font-bold shadow-md hover:bg-primary cursor-pointer"
-              >
-                <span className="material-symbols-outlined text-[18px]">print</span>
-                Download / Print Official Marksheet
-              </button>
+              <div className="flex flex-wrap items-center gap-2">
+                <button
+                  type="button"
+                  disabled={isDownloadingPdf}
+                  onClick={async () => {
+                    if (!transcriptSheetRef.current) return;
+                    setIsDownloadingPdf(true);
+                    try {
+                      await downloadMarksheetAsPdf(
+                        transcriptSheetRef.current,
+                        `Marksheet_${compiledResult.systemId}_${compiledResult.examTitle}`
+                      );
+                    } finally {
+                      setIsDownloadingPdf(false);
+                    }
+                  }}
+                  className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-primary-container text-on-primary text-xs font-bold shadow-md hover:bg-primary disabled:opacity-60 cursor-pointer"
+                >
+                  <Download className="w-4 h-4" />
+                  <span>{isDownloadingPdf ? 'Generating PDF...' : 'Download A4 PDF'}</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() =>
+                    printMarksheetDocument(
+                      `Marksheet - ${compiledResult.studentName} (${compiledResult.systemId})`
+                    )
+                  }
+                  className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-surface-container-lowest border border-outline-variant/40 text-on-surface hover:bg-surface-container-low text-xs font-bold shadow-xs cursor-pointer"
+                >
+                  <Printer className="w-4 h-4" />
+                  <span>Print Official Marksheet</span>
+                </button>
+              </div>
             </div>
 
-            <div className="flex justify-center">
+            <div className="flex justify-center overflow-x-auto pb-2 marksheet-print-scroll">
               <MarksheetDocument
+                sheetRef={transcriptSheetRef}
                 result={compiledResult}
                 exam={currentExam}
                 student={student}

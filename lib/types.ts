@@ -550,6 +550,15 @@ export interface ExaminerAssignment {
   assignedAt?: string;
 }
 
+export type MarksheetSectionId =
+  | 'header'
+  | 'bio'
+  | 'table'
+  | 'summary'
+  | 'attendance'
+  | 'custom-blocks'
+  | 'signatures';
+
 export interface MarksheetCustomField {
   id: string;
   label: string;
@@ -558,7 +567,79 @@ export interface MarksheetCustomField {
   defaultValue?: string;
 }
 
+export interface MarksheetCustomTextBlock {
+  id: string;
+  title?: string;
+  content: string;
+  placement: 'below-header' | 'above-table' | 'below-summary' | 'above-signatures';
+  align?: 'left' | 'center' | 'right';
+  fontSizePx?: number;
+  bold?: boolean;
+  italic?: boolean;
+  bordered?: boolean;
+}
+
+export interface MarksheetLabelsConfig {
+  schoolNameOverride?: string;
+  schoolMetaOverride?: string;
+  examTitleOverride?: string;
+  candidateNameLabel?: string;
+  rollRegLabel?: string;
+  rollPrefix?: string;
+  regPrefix?: string;
+  fatherNameLabel?: string;
+  motherNameLabel?: string;
+  classSectionLabel?: string;
+  groupShiftLabel?: string;
+  studentIdLabel?: string;
+  dobLabel?: string;
+  gradingScaleTitle?: string;
+  codeColLabel?: string;
+  subjectColLabel?: string;
+  fullColLabel?: string;
+  passColLabel?: string;
+  ctColLabel?: string;
+  cqColLabel?: string;
+  mcqColLabel?: string;
+  pracColLabel?: string;
+  totalColLabel?: string;
+  gpColLabel?: string;
+  gradeColLabel?: string;
+  fourthBadgeLabel?: string;
+  aggregateTitle?: string;
+  marksUnitLabel?: string;
+  scoreRatioLabel?: string;
+  gpaTitle?: string;
+  gradePrefixLabel?: string;
+  coreGpaLabel?: string;
+  fourthBonusLabel?: string;
+  meritTitle?: string;
+  classRankLabel?: string;
+  sectionRankLabel?: string;
+  passedStatusText?: string;
+  failedStatusText?: string;
+  workingDaysLabel?: string;
+  daysPresentLabel?: string;
+  conductLabel?: string;
+  remarkTitle?: string;
+  defaultPassRemark?: string;
+  defaultFailRemark?: string;
+  qrTitle?: string;
+  qrSubtitle?: string;
+  footerNoteText?: string;
+}
+
 export interface MarksheetTemplate {
+  layoutPreset?: 'nctb-classic' | 'modern-editorial' | 'compact-fit';
+  headerLayout?: 'centered' | 'left-crest' | 'split-banner';
+  density?: 'compact' | 'balanced' | 'spacious';
+  pageMarginMm?: number;
+  fontScale?: number;
+  borderWidthPx?: number;
+  borderRadiusPx?: number;
+  sideBySideBioAndScale?: boolean;
+  autoFitSinglePage?: boolean;
+  sectionOrder?: MarksheetSectionId[];
   borderStyle?: 'classic-double' | 'modern-clean' | 'official-seal' | 'none';
   accentColor?: string;
   fontFamily?: 'sans' | 'serif';
@@ -584,6 +665,8 @@ export interface MarksheetTemplate {
   showMeritRank?: boolean;
   showAttendanceConduct?: boolean;
   showQrVerification?: boolean;
+  labels?: Partial<MarksheetLabelsConfig>;
+  customTextBlocks?: MarksheetCustomTextBlock[];
   customFields?: MarksheetCustomField[];
 }
 

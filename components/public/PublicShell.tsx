@@ -6,7 +6,21 @@ import { useERPStore } from '@/lib/store';
 import { Exam, ExamResultRecord, NavbarMenuItem } from '@/lib/types';
 import { generateQrDataUrl } from '@/lib/qr';
 import { RenderCmsIcon } from '@/lib/cms-icons';
+import { getEffectiveSectionsForClassGroup } from '@/lib/academic-helpers';
+import { downloadMarksheetAsPdf, printMarksheetDocument } from '@/lib/marksheet-pdf';
 import MarksheetDocument from '@/components/common/MarksheetDocument';
+import {
+  AlertCircle,
+  ArrowLeft,
+  Award,
+  Download,
+  Hash,
+  IdCard,
+  Printer,
+  RefreshCw,
+  Search,
+  X,
+} from 'lucide-react';
 
 export type PublicRoutePath =
   | '/'
@@ -155,44 +169,60 @@ export default function PublicShell({ children, activePath = '/' }: PublicShellP
   const publishedExams = state.exams.filter((ex) => ex.status === 'Published');
   const availableExams = publishedExams;
   const uniqueYears = Array.from(new Set(availableExams.map((ex) => ex.academicYear)));
-  const uniqueClasses = Array.from(
-    new Set([
-      ...state.academicClasses.map((c) => c.name),
-      ...state.students.map((s) => s.className),
-    ])
-  );
-  const effectiveUniqueClasses =
-    uniqueClasses.length > 0
-      ? uniqueClasses
-      : ['Grade 6', 'Grade 7', 'Grade 8', 'Grade 9', 'Grade 10', 'Grade 11', 'Grade 12'];
-  const uniqueSections = Array.from(
-    new Set([
-      ...state.academicClasses.flatMap((c) => c.sections || []),
-      ...state.students.map((s) => s.sectionName).filter(Boolean),
-    ])
-  );
-  const uniqueGroups = Array.from(
-    new Set(['General', 'Science', 'Business Studies', 'Humanities', ...state.students.map((s) => s.group).filter(Boolean)])
-  );
 
+  const [searchMode, setSearchMode] = useState<'id' | 'class-roll'>('id');
   const [selectedExamId, setSelectedExamId] = useState<string>('');
   const [selectedYear, setSelectedYear] = useState<string>('');
-  const [selectedClass, setSelectedClass] = useState<string>(effectiveUniqueClasses[0] || 'Grade 10');
+  const [selectedClass, setSelectedClass] = useState<string>('');
   const [selectedSection, setSelectedSection] = useState<string>('Any');
-  const [selectedGroup, setSelectedGroup] = useState<string>('Any');
-  const [rollQuery, setRollQuery] = useState('1');
+  const [studentIdQuery, setStudentIdQuery] = useState<string>('');
+  const [rollQuery, setRollQuery] = useState('');
   const [activeResult, setActiveResult] = useState<ExamResultRecord | null>(null);
   const [activeExam, setActiveExam] = useState<Exam | null>(null);
+  const [activeStudentMeta, setActiveStudentMeta] = useState<{
+    avatarUrl?: string;
+    banglaName?: string;
+    dateOfBirth?: string;
+  } | null>(null);
   const [qrCodeDataUrl, setQrCodeDataUrl] = useState<string>('');
   const [lookupError, setLookupError] = useState<string | null>(null);
   const [isSearchingResult, setIsSearchingResult] = useState(false);
+  const [isDownloadingPdf, setIsDownloadingPdf] = useState(false);
+  const marksheetSheetRef = useRef<HTMLDivElement | null>(null);
 
   const resolvedExamId = availableExams.some((ex) => ex.id === selectedExamId)
     ? selectedExamId
     : availableExams[0]?.id || '';
+  const activeSearchExam =
+    availableExams.find((ex) => ex.id === resolvedExamId) || availableExams[0];
   const resolvedYear = uniqueYears.includes(selectedYear)
     ? selectedYear
-    : uniqueYears[0] || new Date().getFullYear().toString();
+    : activeSearchExam?.academicYear || uniqueYears[0] || new Date().getFullYear().toString();
+
+  const examTargetClasses = activeSearchExam?.targetClasses || [];
+  const allConfiguredClasses = Array.from(
+    new Set([
+      ...examTargetClasses,
+      ...state.academicClasses.map((c) => c.name),
+      ...state.students.map((s) => s.className),
+      ...(activeSearchExam?.savedTabulation?.records || []).map((r) => r.className),
+    ])
+  ).filter(Boolean);
+  const effectiveUniqueClasses =
+    examTargetClasses.length > 0 ? examTargetClasses : allConfiguredClasses;
+  const resolvedClass = effectiveUniqueClasses.includes(selectedClass)
+    ? selectedClass
+    : effectiveUniqueClasses[0] || '';
+
+  const activeClassObj = state.academicClasses.find((c) => c.name === resolvedClass);
+  const classSections = activeClassObj
+    ? getEffectiveSectionsForClassGroup(activeClassObj, 'All').filter((s) => s && s !== 'Common')
+    : [];
+  const classHasSections = Boolean(
+    activeClassObj && activeClassObj.hasSections !== false && classSections.length > 0
+  );
+  const resolvedSection =
+    classHasSections && classSections.includes(selectedSection) ? selectedSection : 'Any';
 
   // Security Captcha
   const [captchaNum1, setCaptchaNum1] = useState(5);
@@ -264,6 +294,7 @@ export default function PublicShell({ children, activePath = '/' }: PublicShellP
     setLookupError(null);
     setActiveResult(null);
     setActiveExam(null);
+    setActiveStudentMeta(null);
     resetCaptcha();
     setShowResultPortal(true);
     setMobileMenuOpen(false);
@@ -279,41 +310,69 @@ export default function PublicShell({ children, activePath = '/' }: PublicShellP
     }
     setCaptchaError(false);
 
-    const exam = availableExams.find(
-      (ex) =>
-        (resolvedExamId ? ex.id === resolvedExamId : true) &&
-        (resolvedYear ? ex.academicYear === resolvedYear : true)
-    );
+    const exam =
+      availableExams.find(
+        (ex) =>
+          (resolvedExamId ? ex.id === resolvedExamId : true) &&
+          (resolvedYear ? ex.academicYear === resolvedYear : true)
+      ) || activeSearchExam;
 
     if (!exam) {
-      setLookupError('No published examination found matching the selected Examination and Academic Year.');
+      setLookupError(
+        'No published examination is available yet. Results will appear here once published.'
+      );
       return;
     }
 
-    const rollNum = parseInt(rollQuery.trim(), 10);
-    if (Number.isNaN(rollNum) || rollNum <= 0) {
-      setLookupError('Please enter a valid numeric Class Roll Number.');
-      return;
+    if (searchMode === 'id') {
+      if (!studentIdQuery.trim()) {
+        setLookupError('Please enter your Student ID or Registration Number.');
+        return;
+      }
+    } else {
+      if (!resolvedClass) {
+        setLookupError('Please select your Class.');
+        return;
+      }
+      const rollNum = parseInt(rollQuery.trim(), 10);
+      if (Number.isNaN(rollNum) || rollNum <= 0) {
+        setLookupError('Please enter a valid numeric Class Roll Number.');
+        return;
+      }
     }
 
     setIsSearchingResult(true);
     try {
+      const payload =
+        searchMode === 'id'
+          ? {
+              examId: exam.id,
+              searchMode: 'id',
+              studentIdQuery: studentIdQuery.trim(),
+            }
+          : {
+              examId: exam.id,
+              searchMode: 'class-roll',
+              className: resolvedClass,
+              sectionName: classHasSections ? resolvedSection : 'Any',
+              rollNumber: parseInt(rollQuery.trim(), 10),
+            };
+
       const res = await fetch('/api/public/results-lookup', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          examId: exam.id,
-          rollNumber: rollNum,
-          className: selectedClass,
-          sectionName: selectedSection,
-          group: selectedGroup,
-        }),
+        body: JSON.stringify(payload),
       });
       const rawText = await res.text();
-      let data: { error?: string; result?: ExamResultRecord; exam?: Exam } = {};
+      let data: {
+        error?: string;
+        result?: ExamResultRecord;
+        exam?: Exam;
+        studentMeta?: { avatarUrl?: string; banglaName?: string; dateOfBirth?: string } | null;
+      } = {};
       if (rawText && !rawText.trim().startsWith('<')) {
         try {
-          data = JSON.parse(rawText) as { error?: string; result?: ExamResultRecord; exam?: Exam };
+          data = JSON.parse(rawText);
         } catch {
           data = {};
         }
@@ -323,15 +382,14 @@ export default function PublicShell({ children, activePath = '/' }: PublicShellP
           data.error ||
             (rawText.trim().startsWith('<')
               ? `Server returned HTML (HTTP ${res.status}). Please retry in a moment.`
-              : `No result found for Roll #${rollNum} in ${selectedClass}${
-                  selectedSection !== 'Any' ? ` (Section ${selectedSection})` : ''
-                }${selectedGroup !== 'Any' ? ` — ${selectedGroup}` : ''}.`)
+              : 'No matching examinee found for the provided criteria.')
         );
         return;
       }
 
       setActiveExam(data.exam || exam);
       setActiveResult(data.result);
+      setActiveStudentMeta(data.studentMeta || null);
 
       const origin = typeof window !== 'undefined' ? window.location.origin : '';
       generateQrDataUrl(
@@ -344,6 +402,26 @@ export default function PublicShell({ children, activePath = '/' }: PublicShellP
     } finally {
       setIsSearchingResult(false);
     }
+  };
+
+  const handleDownloadPublicPdf = async () => {
+    if (!marksheetSheetRef.current || !activeResult) return;
+    setIsDownloadingPdf(true);
+    try {
+      await downloadMarksheetAsPdf(
+        marksheetSheetRef.current,
+        `Marksheet-${activeResult.studentName}-Roll-${activeResult.rollNumber}`
+      );
+    } finally {
+      setIsDownloadingPdf(false);
+    }
+  };
+
+  const handlePrintPublicMarksheet = () => {
+    if (!activeResult) return;
+    printMarksheetDocument(
+      `Marksheet-${activeResult.studentName}-Roll-${activeResult.rollNumber}`
+    );
   };
 
   if (cmsConfig.isMaintenanceMode) {
@@ -897,260 +975,342 @@ export default function PublicShell({ children, activePath = '/' }: PublicShellP
 
         {/* GLOBAL RESULT LOOKUP & A4 MARKSHEET MODAL */}
         {showResultPortal && (
-          <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-4 overflow-y-auto">
-            <div className="relative w-full max-w-4xl bg-white rounded-3xl shadow-2xl border border-slate-200 p-6 sm:p-8 space-y-6 my-8">
-              <div className="flex items-center justify-between border-b border-slate-200 pb-4 no-print">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-xl bg-primary-fixed text-primary-container flex items-center justify-center">
-                    <span className="material-symbols-outlined text-[24px]">workspace_premium</span>
+          <div className="fixed inset-0 z-50 bg-slate-950/75 backdrop-blur-md flex items-start sm:items-center justify-center p-2 sm:p-4 marksheet-print-host">
+            <div
+              className={`relative w-full ${
+                activeResult ? 'max-w-4xl' : 'max-w-xl'
+              } max-h-[94vh] flex flex-col bg-white rounded-2xl sm:rounded-3xl shadow-2xl border border-slate-200 overflow-hidden`}
+            >
+              {/* Sticky Modal Header */}
+              <div className="flex items-center justify-between gap-3 px-5 py-4 border-b border-slate-200 bg-white shrink-0 no-print">
+                <div className="flex items-center gap-3 min-w-0">
+                  <div className="w-10 h-10 rounded-xl bg-primary-fixed text-primary-container flex items-center justify-center shrink-0">
+                    <Award className="w-5 h-5" />
                   </div>
-                  <div>
-                    <h3 className="font-title-lg text-lg text-on-surface font-bold">
+                  <div className="min-w-0">
+                    <h3 className="font-title-lg text-base sm:text-lg text-on-surface font-bold truncate">
                       Official Student Result &amp; Marksheet Archive
                     </h3>
-                    <span className="font-label-sm text-xs text-on-surface-variant">
-                      {cmsConfig.schoolName} &bull; {(activeExam || publishedExam)?.title || 'Term Examinations'}
-                    </span>
+                    <div className="text-xs text-on-surface-variant flex items-center gap-1.5 truncate">
+                      <span className="truncate">{cmsConfig.schoolName}</span>
+                      <span aria-hidden="true">·</span>
+                      <span className="truncate">
+                        {(activeExam || activeSearchExam || publishedExam)?.title ||
+                          'Published Results'}
+                      </span>
+                    </div>
                   </div>
                 </div>
 
                 <button
                   type="button"
+                  aria-label="Close Result Modal"
                   onClick={() => {
                     setShowResultPortal(false);
                     setActiveResult(null);
                     setActiveExam(null);
+                    setActiveStudentMeta(null);
                     setLookupError(null);
                   }}
-                  className="w-9 h-9 rounded-full bg-surface-container hover:bg-surface-container-high flex items-center justify-center cursor-pointer"
+                  className="w-9 h-9 rounded-full bg-surface-container hover:bg-surface-container-high flex items-center justify-center cursor-pointer shrink-0 transition-colors"
                 >
-                  <span className="material-symbols-outlined text-[20px]">close</span>
+                  <X className="w-4 h-4 text-on-surface" />
                 </button>
               </div>
 
-              {!activeResult ? (
-                <form onSubmit={handleFetchResult} className="space-y-4 max-w-2xl mx-auto py-2">
-                  {lookupError && (
-                    <div className="p-3.5 rounded-2xl bg-error-container text-on-error-container text-xs font-medium flex items-start gap-2">
-                      <span className="material-symbols-outlined text-[18px] shrink-0">error</span>
-                      <span>{lookupError}</span>
-                    </div>
-                  )}
-
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    <div className="space-y-1.5 sm:col-span-2">
-                      <label className="font-label-md text-xs font-semibold text-on-surface block">
-                        Examination *
-                      </label>
-                      <select
-                        required
-                        value={resolvedExamId}
-                        onChange={(e) => {
-                          const nextId = e.target.value;
-                          setSelectedExamId(nextId);
-                          const match = availableExams.find((ex) => ex.id === nextId);
-                          if (match) setSelectedYear(match.academicYear);
-                          setLookupError(null);
-                        }}
-                        className="w-full px-3.5 py-2.5 rounded-xl border border-outline-variant/60 bg-surface-container-low text-sm text-on-surface focus:outline-hidden focus:ring-2 focus:ring-primary-container"
-                      >
-                        {availableExams.length === 0 ? (
-                          <option value="">No published examinations available yet</option>
-                        ) : (
-                          availableExams.map((ex) => (
-                            <option key={ex.id} value={ex.id}>
-                              {ex.title} ({ex.term} &bull; {ex.academicYear})
-                            </option>
-                          ))
-                        )}
-                      </select>
-                    </div>
-
-                    <div className="space-y-1.5">
-                      <label className="font-label-md text-xs font-semibold text-on-surface block">
-                        Academic Year *
-                      </label>
-                      <select
-                        required
-                        value={resolvedYear}
-                        onChange={(e) => {
-                          setSelectedYear(e.target.value);
-                          setLookupError(null);
-                        }}
-                        className="w-full px-3.5 py-2.5 rounded-xl border border-outline-variant/60 bg-surface-container-low text-sm text-on-surface font-mono focus:outline-hidden focus:ring-2 focus:ring-primary-container"
-                      >
-                        {uniqueYears.map((yr) => (
-                          <option key={yr} value={yr}>
-                            {yr}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-
-                    <div className="space-y-1.5">
-                      <label className="font-label-md text-xs font-semibold text-on-surface block">
-                        Class *
-                      </label>
-                      <select
-                        required
-                        value={selectedClass}
-                        onChange={(e) => {
-                          setSelectedClass(e.target.value);
-                          setLookupError(null);
-                        }}
-                        className="w-full px-3.5 py-2.5 rounded-xl border border-outline-variant/60 bg-surface-container-low text-sm text-on-surface focus:outline-hidden focus:ring-2 focus:ring-primary-container"
-                      >
-                        {effectiveUniqueClasses.map((cls) => (
-                          <option key={cls} value={cls}>
-                            {cls}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-
-                    <div className="space-y-1.5">
-                      <label className="font-label-md text-xs font-semibold text-on-surface block">
-                        Section <span className="text-on-surface-variant font-normal">(if available)</span>
-                      </label>
-                      <select
-                        value={selectedSection}
-                        onChange={(e) => {
-                          setSelectedSection(e.target.value);
-                          setLookupError(null);
-                        }}
-                        className="w-full px-3.5 py-2.5 rounded-xl border border-outline-variant/60 bg-surface-container-low text-sm text-on-surface focus:outline-hidden focus:ring-2 focus:ring-primary-container"
-                      >
-                        <option value="Any">All / Not Applicable</option>
-                        {uniqueSections.map((sec) => (
-                          <option key={sec} value={sec}>
-                            Section {sec}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-
-                    <div className="space-y-1.5">
-                      <label className="font-label-md text-xs font-semibold text-on-surface block">
-                        Group <span className="text-on-surface-variant font-normal">(if available)</span>
-                      </label>
-                      <select
-                        value={selectedGroup}
-                        onChange={(e) => {
-                          setSelectedGroup(e.target.value);
-                          setLookupError(null);
-                        }}
-                        className="w-full px-3.5 py-2.5 rounded-xl border border-outline-variant/60 bg-surface-container-low text-sm text-on-surface focus:outline-hidden focus:ring-2 focus:ring-primary-container"
-                      >
-                        <option value="Any">All / Not Applicable</option>
-                        {uniqueGroups.map((grp) => (
-                          <option key={grp} value={grp}>
-                            {grp}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-
-                    <div className="space-y-1.5 sm:col-span-2">
-                      <label className="font-label-md text-xs font-semibold text-on-surface block">
-                        Class Roll Number *
-                      </label>
-                      <input
-                        type="number"
-                        min={1}
-                        required
-                        value={rollQuery}
-                        onChange={(e) => {
-                          setRollQuery(e.target.value);
-                          setLookupError(null);
-                        }}
-                        placeholder="Enter Roll Number (e.g. 1, 2, 3)"
-                        className="w-full px-3.5 py-2.5 rounded-xl border border-outline-variant/60 bg-surface-container-low text-sm text-on-surface font-mono font-bold focus:outline-hidden focus:ring-2 focus:ring-primary-container"
-                      />
-                    </div>
-                  </div>
-
-                  <div className="p-4 rounded-2xl bg-surface-container-low border border-outline-variant/40 space-y-2">
-                    <div className="flex items-center justify-between">
-                      <label className="font-label-md text-xs font-semibold text-on-surface block">
-                        Security Captcha *
-                      </label>
+              {/* Scrollable Modal Body */}
+              <div className="flex-1 overflow-y-auto p-5 sm:p-6 marksheet-print-scroll">
+                {!activeResult ? (
+                  <form onSubmit={handleFetchResult} className="space-y-4">
+                    {/* Two Search Mode Tabs */}
+                    <div className="grid grid-cols-2 gap-1.5 p-1 rounded-xl bg-surface-container-low border border-outline-variant/30">
                       <button
                         type="button"
-                        onClick={resetCaptcha}
-                        className="text-[11px] text-primary-container font-semibold hover:underline cursor-pointer"
+                        onClick={() => {
+                          setSearchMode('id');
+                          setLookupError(null);
+                        }}
+                        className={`py-2.5 px-3 rounded-lg text-xs font-bold inline-flex items-center justify-center gap-1.5 cursor-pointer transition-colors whitespace-nowrap ${
+                          searchMode === 'id'
+                            ? 'bg-white text-primary-container shadow-xs border border-outline-variant/25'
+                            : 'text-on-surface-variant hover:text-on-surface'
+                        }`}
                       >
-                        Refresh Captcha
+                        <IdCard className="w-4 h-4 shrink-0" />
+                        <span>Search by Student ID</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setSearchMode('class-roll');
+                          setLookupError(null);
+                        }}
+                        className={`py-2.5 px-3 rounded-lg text-xs font-bold inline-flex items-center justify-center gap-1.5 cursor-pointer transition-colors whitespace-nowrap ${
+                          searchMode === 'class-roll'
+                            ? 'bg-white text-primary-container shadow-xs border border-outline-variant/25'
+                            : 'text-on-surface-variant hover:text-on-surface'
+                        }`}
+                      >
+                        <Hash className="w-4 h-4 shrink-0" />
+                        <span>Search by Class &amp; Roll</span>
                       </button>
                     </div>
-                    <div className="flex items-center gap-3">
-                      <span className="px-4 py-2 bg-primary-container text-on-primary font-mono font-bold rounded-xl text-sm">
-                        {captchaNum1} + {captchaNum2} = ?
+
+                    {lookupError && (
+                      <div className="p-3.5 rounded-xl bg-error-container text-on-error-container text-xs font-medium flex items-start gap-2 border border-error/20">
+                        <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
+                        <span>{lookupError}</span>
+                      </div>
+                    )}
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+                      <div className={uniqueYears.length > 1 ? 'space-y-1.5' : 'space-y-1.5 sm:col-span-2'}>
+                        <label className="font-label-md text-xs font-semibold text-on-surface block">
+                          Examination *
+                        </label>
+                        <select
+                          required
+                          value={resolvedExamId}
+                          onChange={(e) => {
+                            const nextId = e.target.value;
+                            setSelectedExamId(nextId);
+                            const match = availableExams.find((ex) => ex.id === nextId);
+                            if (match) setSelectedYear(match.academicYear);
+                            setLookupError(null);
+                          }}
+                          className="w-full px-3.5 py-2.5 rounded-xl border border-outline-variant/60 bg-surface-container-low text-sm text-on-surface focus:outline-hidden focus:ring-2 focus:ring-primary-container"
+                        >
+                          {availableExams.length === 0 ? (
+                            <option value="">No published examinations available yet</option>
+                          ) : (
+                            availableExams.map((ex) => (
+                              <option key={ex.id} value={ex.id}>
+                                {ex.title} ({ex.term} &bull; {ex.academicYear})
+                              </option>
+                            ))
+                          )}
+                        </select>
+                      </div>
+
+                      {uniqueYears.length > 1 && (
+                        <div className="space-y-1.5">
+                          <label className="font-label-md text-xs font-semibold text-on-surface block">
+                            Academic Year *
+                          </label>
+                          <select
+                            required
+                            value={resolvedYear}
+                            onChange={(e) => {
+                              setSelectedYear(e.target.value);
+                              setLookupError(null);
+                            }}
+                            className="w-full px-3.5 py-2.5 rounded-xl border border-outline-variant/60 bg-surface-container-low text-sm text-on-surface font-mono focus:outline-hidden focus:ring-2 focus:ring-primary-container"
+                          >
+                            {uniqueYears.map((yr) => (
+                              <option key={yr} value={yr}>
+                                {yr}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+                      )}
+
+                      {searchMode === 'id' ? (
+                        <div className="space-y-1.5 sm:col-span-2">
+                          <label className="font-label-md text-xs font-semibold text-on-surface block">
+                            Student ID / Board Registration Number *
+                          </label>
+                          <input
+                            type="text"
+                            required
+                            value={studentIdQuery}
+                            onChange={(e) => {
+                              setStudentIdQuery(e.target.value);
+                              setLookupError(null);
+                            }}
+                            placeholder="Enter Student ID (e.g. STU-2026-0001) or Reg No."
+                            className="w-full px-3.5 py-2.5 rounded-xl border border-outline-variant/60 bg-surface-container-low text-sm text-on-surface font-mono font-semibold focus:outline-hidden focus:ring-2 focus:ring-primary-container"
+                          />
+                        </div>
+                      ) : (
+                        <>
+                          <div
+                            className={`space-y-1.5 ${
+                              classHasSections ? '' : 'sm:col-span-2'
+                            }`}
+                          >
+                            <label className="font-label-md text-xs font-semibold text-on-surface block">
+                              Class *
+                            </label>
+                            <select
+                              required
+                              value={resolvedClass}
+                              onChange={(e) => {
+                                setSelectedClass(e.target.value);
+                                setSelectedSection('Any');
+                                setLookupError(null);
+                              }}
+                              className="w-full px-3.5 py-2.5 rounded-xl border border-outline-variant/60 bg-surface-container-low text-sm text-on-surface focus:outline-hidden focus:ring-2 focus:ring-primary-container"
+                            >
+                              {effectiveUniqueClasses.length === 0 ? (
+                                <option value="">No classes available</option>
+                              ) : (
+                                effectiveUniqueClasses.map((cls) => (
+                                  <option key={cls} value={cls}>
+                                    {cls}
+                                  </option>
+                                ))
+                              )}
+                            </select>
+                          </div>
+
+                          {classHasSections && (
+                            <div className="space-y-1.5">
+                              <label className="font-label-md text-xs font-semibold text-on-surface block">
+                                Section
+                              </label>
+                              <select
+                                value={resolvedSection}
+                                onChange={(e) => {
+                                  setSelectedSection(e.target.value);
+                                  setLookupError(null);
+                                }}
+                                className="w-full px-3.5 py-2.5 rounded-xl border border-outline-variant/60 bg-surface-container-low text-sm text-on-surface focus:outline-hidden focus:ring-2 focus:ring-primary-container"
+                              >
+                                <option value="Any">All Sections</option>
+                                {classSections.map((sec) => (
+                                  <option key={sec} value={sec}>
+                                    Section {sec}
+                                  </option>
+                                ))}
+                              </select>
+                            </div>
+                          )}
+
+                          <div className="space-y-1.5 sm:col-span-2">
+                            <label className="font-label-md text-xs font-semibold text-on-surface block">
+                              Class Roll Number *
+                            </label>
+                            <input
+                              type="number"
+                              min={1}
+                              required
+                              value={rollQuery}
+                              onChange={(e) => {
+                                setRollQuery(e.target.value);
+                                setLookupError(null);
+                              }}
+                              placeholder="Enter Roll Number (e.g. 1, 2, 15)"
+                              className="w-full px-3.5 py-2.5 rounded-xl border border-outline-variant/60 bg-surface-container-low text-sm text-on-surface font-mono font-bold tabular-nums focus:outline-hidden focus:ring-2 focus:ring-primary-container"
+                            />
+                          </div>
+                        </>
+                      )}
+                    </div>
+
+                    {/* Security Captcha */}
+                    <div className="p-3.5 rounded-xl bg-surface-container-low border border-outline-variant/40 space-y-2">
+                      <div className="flex items-center justify-between">
+                        <label className="font-label-md text-xs font-semibold text-on-surface block">
+                          Security Captcha *
+                        </label>
+                        <button
+                          type="button"
+                          onClick={resetCaptcha}
+                          className="text-[11px] text-primary-container font-semibold hover:underline cursor-pointer inline-flex items-center gap-1"
+                        >
+                          <RefreshCw className="w-3 h-3" />
+                          <span>Refresh</span>
+                        </button>
+                      </div>
+                      <div className="flex items-center gap-3">
+                        <span className="px-3.5 py-2 bg-primary-container text-on-primary font-mono font-bold rounded-xl text-sm tabular-nums shrink-0">
+                          {captchaNum1} + {captchaNum2} = ?
+                        </span>
+                        <input
+                          type="number"
+                          required
+                          placeholder="Answer"
+                          value={captchaInput}
+                          onChange={(e) => {
+                            setCaptchaInput(e.target.value);
+                            setCaptchaError(false);
+                          }}
+                          className="w-28 px-3 py-2 rounded-xl border border-outline-variant/60 font-mono text-center font-bold bg-white tabular-nums"
+                        />
+                      </div>
+                      {captchaError && (
+                        <span className="text-xs text-error font-medium block">
+                          Incorrect captcha answer. Please try again.
+                        </span>
+                      )}
+                    </div>
+
+                    <button
+                      type="submit"
+                      disabled={isSearchingResult || availableExams.length === 0}
+                      className="w-full py-3 rounded-xl bg-primary-container hover:bg-primary disabled:opacity-60 text-on-primary font-label-md text-sm font-semibold shadow-sm transition-all cursor-pointer inline-flex items-center justify-center gap-2"
+                    >
+                      <Search className="w-4 h-4" />
+                      <span>
+                        {isSearchingResult ? 'Searching Registry...' : 'Show Official Result'}
                       </span>
-                      <input
-                        type="number"
-                        required
-                        placeholder="Answer"
-                        value={captchaInput}
-                        onChange={(e) => {
-                          setCaptchaInput(e.target.value);
-                          setCaptchaError(false);
+                    </button>
+                  </form>
+                ) : (
+                  /* A4 MARKSHEET VIEW */
+                  <div className="space-y-4">
+                    <div className="flex flex-wrap items-center justify-between gap-2.5 no-print">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setActiveResult(null);
+                          setActiveExam(null);
+                          setActiveStudentMeta(null);
+                          resetCaptcha();
                         }}
-                        className="w-28 px-3 py-2 rounded-xl border border-outline-variant/60 font-mono text-center font-bold bg-white"
+                        className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-surface-container hover:bg-surface-container-high text-on-surface text-xs font-semibold cursor-pointer whitespace-nowrap"
+                      >
+                        <ArrowLeft className="w-3.5 h-3.5" />
+                        <span>Search Another</span>
+                      </button>
+
+                      <div className="flex flex-wrap items-center gap-2">
+                        <button
+                          type="button"
+                          disabled={isDownloadingPdf}
+                          onClick={handleDownloadPublicPdf}
+                          className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-primary-container hover:bg-primary disabled:opacity-60 text-on-primary text-xs font-semibold shadow-sm cursor-pointer whitespace-nowrap"
+                        >
+                          <Download className="w-3.5 h-3.5" />
+                          <span>{isDownloadingPdf ? 'Generating PDF...' : 'Download A4 PDF'}</span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={handlePrintPublicMarksheet}
+                          className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-surface-container-low hover:bg-surface-container text-on-surface border border-outline-variant/50 text-xs font-semibold cursor-pointer whitespace-nowrap"
+                        >
+                          <Printer className="w-3.5 h-3.5" />
+                          <span>Print A4</span>
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Printable A4 Canvas */}
+                    <div className="flex justify-center overflow-x-auto pb-2 print:overflow-visible print:pb-0">
+                      <MarksheetDocument
+                        sheetRef={marksheetSheetRef}
+                        result={activeResult}
+                        exam={activeExam || publishedExam}
+                        student={state.students.find((s) => s.id === activeResult.studentId) || null}
+                        studentMetaOverride={activeStudentMeta}
+                        cmsConfig={cmsConfig}
+                        qrCodeDataUrl={qrCodeDataUrl}
                       />
                     </div>
-                    {captchaError && (
-                      <span className="text-xs text-error font-medium block">
-                        Incorrect captcha answer. Try again.
-                      </span>
-                    )}
                   </div>
-
-                  <button
-                    type="submit"
-                    disabled={isSearchingResult}
-                    className="w-full py-3 rounded-full bg-primary-container hover:bg-primary disabled:opacity-60 text-on-primary font-label-md text-sm font-semibold shadow-sm transition-all cursor-pointer"
-                  >
-                    {isSearchingResult ? 'Searching Registry...' : 'Show Result'}
-                  </button>
-                </form>
-              ) : (
-                /* A4 MARKSHEET VIEW */
-                <div className="space-y-4">
-                  <div className="flex items-center justify-between no-print">
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setActiveResult(null);
-                        setActiveExam(null);
-                        resetCaptcha();
-                      }}
-                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-surface-container text-on-surface text-xs font-semibold cursor-pointer"
-                    >
-                      <span className="material-symbols-outlined text-[16px]">arrow_back</span>
-                      Search Another Roll
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => window.print()}
-                      className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-primary-container hover:bg-primary text-on-primary text-xs font-semibold shadow-sm cursor-pointer"
-                    >
-                      <span className="material-symbols-outlined text-[18px]">print</span>
-                      Print Official A4 Marksheet
-                    </button>
-                  </div>
-
-                  {/* Printable A4 Canvas */}
-                  <div className="flex justify-center">
-                    <MarksheetDocument
-                      result={activeResult}
-                      exam={activeExam || publishedExam}
-                      student={state.students.find((s) => s.id === activeResult.studentId) || null}
-                      cmsConfig={cmsConfig}
-                      qrCodeDataUrl={qrCodeDataUrl}
-                    />
-                  </div>
-                </div>
-              )}
+                )}
+              </div>
             </div>
           </div>
         )}

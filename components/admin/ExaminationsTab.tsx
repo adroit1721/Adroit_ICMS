@@ -1,6 +1,7 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
+import { Download, Printer } from 'lucide-react';
 import { useERPStore } from '@/lib/store';
 import {
   classMatchesEnabledWings,
@@ -28,6 +29,7 @@ import {
   computeClassAndSectionMeritRanks,
 } from '@/lib/grading-engine';
 import { generateQrDataUrl } from '@/lib/qr';
+import { downloadMarksheetAsPdf, printMarksheetDocument } from '@/lib/marksheet-pdf';
 import { isTeachingStaff } from '@/lib/teacher-helpers';
 import MarksheetDesignerPanel from '@/components/admin/MarksheetDesignerPanel';
 import MarksheetDocument from '@/components/common/MarksheetDocument';
@@ -100,6 +102,8 @@ function ExaminationsTabInner() {
   const [subTab, setSubTab] = useState<ExamSubTab>('announcements');
   const [selectedExamId, setSelectedExamId] = useState(exams[0]?.id || '');
   const currentExam = exams.find((e) => e.id === selectedExamId) || exams[0];
+  const [isDownloadingPreviewPdf, setIsDownloadingPreviewPdf] = useState(false);
+  const previewSheetRef = useRef<HTMLDivElement | null>(null);
 
   const [saveFeedback, setSaveFeedback] = useState<string | null>(null);
   const showToast = (msg: string) => {
@@ -4338,7 +4342,7 @@ function ExaminationsTabInner() {
 
       {/* SUB-TAB 6: A4 MARKSHEET LIVE PREVIEW */}
       {subTab === 'preview-marksheet' && compiledResult && (
-        <div className="space-y-6">
+        <div className="space-y-6 marksheet-print-host">
           <div className="rounded-2xl bg-surface-container-lowest border border-outline-variant/25 p-4 flex flex-col sm:flex-row items-center justify-between gap-4 no-print">
             <div className="flex items-center gap-3">
               <span className="text-xs font-semibold text-on-surface-variant">Candidate:</span>
@@ -4361,18 +4365,45 @@ function ExaminationsTabInner() {
                 ))}
               </select>
             </div>
-            <button
-              type="button"
-              onClick={() => window.print()}
-              className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-primary-container hover:bg-primary text-on-primary font-bold text-xs shadow-md cursor-pointer"
-            >
-              <span className="material-symbols-outlined text-[18px]">print</span>
-              Print Official Marksheet (A4)
-            </button>
+            <div className="flex flex-wrap items-center gap-2">
+              <button
+                type="button"
+                disabled={isDownloadingPreviewPdf}
+                onClick={async () => {
+                  if (!previewSheetRef.current) return;
+                  setIsDownloadingPreviewPdf(true);
+                  try {
+                    await downloadMarksheetAsPdf(
+                      previewSheetRef.current,
+                      `Marksheet_${compiledResult.systemId}_${compiledResult.examTitle}`
+                    );
+                  } finally {
+                    setIsDownloadingPreviewPdf(false);
+                  }
+                }}
+                className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-primary-container hover:bg-primary text-on-primary font-bold text-xs shadow-md disabled:opacity-60 cursor-pointer"
+              >
+                <Download className="w-4 h-4" />
+                <span>{isDownloadingPreviewPdf ? 'Generating PDF...' : 'Download A4 PDF'}</span>
+              </button>
+              <button
+                type="button"
+                onClick={() =>
+                  printMarksheetDocument(
+                    `Marksheet - ${compiledResult.studentName} (${compiledResult.systemId})`
+                  )
+                }
+                className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-surface-container-low hover:bg-surface-container border border-outline-variant/40 text-on-surface font-bold text-xs shadow-xs cursor-pointer"
+              >
+                <Printer className="w-4 h-4" />
+                <span>Print Official Marksheet (A4)</span>
+              </button>
+            </div>
           </div>
 
-          <div className="flex justify-center">
+          <div className="flex justify-center overflow-x-auto pb-2 marksheet-print-scroll">
             <MarksheetDocument
+              sheetRef={previewSheetRef}
               result={compiledResult}
               exam={currentExam}
               student={selectedStudentForPreview}
