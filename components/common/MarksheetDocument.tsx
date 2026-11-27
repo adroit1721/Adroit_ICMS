@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   CMSConfig,
   Exam,
@@ -781,7 +781,7 @@ export default function MarksheetDocument({
   onRemoveCustomBlock,
 }: MarksheetDocumentProps) {
   const [activeBoxId, setActiveBoxId] = useState<string | null>(null);
-  const localWrapperRef = useRef<HTMLDivElement | null>(null);
+  const effectiveActiveBoxId = isInlineEditMode ? activeBoxId : null;
 
   useEffect(() => {
     registerGlobalMarksheetPrintCalibrator();
@@ -789,7 +789,6 @@ export default function MarksheetDocument({
 
   useEffect(() => {
     if (!isInlineEditMode) {
-      setActiveBoxId(null);
       return;
     }
     const handleOutside = (e: MouseEvent) => {
@@ -965,7 +964,7 @@ export default function MarksheetDocument({
   const editableBindings = (boxKey: string) => ({
     boxKey,
     labelStyle: t.labelStyles[boxKey],
-    activeBoxId,
+    activeBoxId: effectiveActiveBoxId,
     onActivateBox: setActiveBoxId,
     onUpdateLabelStyle,
   });
@@ -979,7 +978,7 @@ export default function MarksheetDocument({
       <div className="space-y-1.5 relative">
         {blocks.map((block) => {
           const blockBoxId = `block:${block.id}`;
-          const isSelected = Boolean(isInlineEditMode && activeBoxId === blockBoxId);
+          const isSelected = Boolean(isInlineEditMode && effectiveActiveBoxId === blockBoxId);
           const alignClass =
             block.align === 'center'
               ? 'text-center'
@@ -2297,19 +2296,9 @@ export default function MarksheetDocument({
     }
   };
 
-  const assignRefs = (el: HTMLDivElement | null) => {
-    localWrapperRef.current = el;
-    if (!sheetRef) return;
-    if (typeof sheetRef === 'function') {
-      sheetRef(el);
-    } else {
-      (sheetRef as React.MutableRefObject<HTMLDivElement | null>).current = el;
-    }
-  };
-
   return (
     <div
-      ref={assignRefs}
+      ref={sheetRef}
       data-orientation={t.orientation}
       data-auto-fit={t.autoFitSinglePage ? 'true' : 'false'}
       style={{
