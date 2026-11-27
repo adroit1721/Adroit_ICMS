@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useERPStore } from '@/lib/store';
-import { GenderType, MarkEntry, ShiftType, Teacher } from '@/lib/types';
+import { AcademicGroup, GenderType, MarkEntry, ShiftType, Teacher } from '@/lib/types';
 import { evaluateSubjectResult } from '@/lib/grading-engine';
 import {
   formatDateDDMMYYYY,
@@ -12,6 +12,7 @@ import {
   formatSubjectGroupsLabel,
   getActiveSubjectCustomComponents,
   getEffectiveConversionPercent,
+  getEffectiveSectionsForClassGroup,
   isSubjectComponentEnabled,
   resolveSubjectCTConfig,
   sortSubjectsByOrder,
@@ -502,12 +503,27 @@ export default function TeacherDashboardPage() {
 
   const currentSubject = subjects.find((s) => s.id === assignedClassInfo?.subjectId);
   const assignedClassObj = academicClasses.find((c) => c.name === assignedClassInfo?.className);
-  const assignedClassSections = assignedClassObj
-    ? getEffectiveSectionsForClassGroup(assignedClassObj, 'All')
-    : [];
   const assignedClassGroups = (assignedClassObj?.groups || []).filter(
     (g): g is AcademicGroup => g !== 'General'
   );
+  const effectiveTeacherGroup: 'ALL' | AcademicGroup =
+    selectedTeacherGroup === 'ALL' || assignedClassGroups.includes(selectedTeacherGroup)
+      ? selectedTeacherGroup
+      : 'ALL';
+  const rawAssignedSections = assignedClassObj
+    ? getEffectiveSectionsForClassGroup(
+        assignedClassObj,
+        effectiveTeacherGroup === 'ALL' ? 'All' : effectiveTeacherGroup
+      )
+    : [];
+  const assignedClassSections =
+    assignedClassInfo?.sectionName && assignedClassInfo.sectionName !== 'Common'
+      ? [assignedClassInfo.sectionName]
+      : rawAssignedSections;
+  const effectiveTeacherSection =
+    selectedTeacherSection === 'ALL' || assignedClassSections.includes(selectedTeacherSection)
+      ? selectedTeacherSection
+      : 'ALL';
 
   // Check if another examiner has exclusive lock over the selected paper
   const matchingPaperExaminers =
@@ -547,15 +563,15 @@ export default function TeacherDashboardPage() {
               return false;
             }
             if (
-              selectedTeacherSection !== 'ALL' &&
-              selectedTeacherSection !== 'Common' &&
-              s.sectionName !== selectedTeacherSection
+              effectiveTeacherSection !== 'ALL' &&
+              effectiveTeacherSection !== 'Common' &&
+              s.sectionName !== effectiveTeacherSection
             ) {
               return false;
             }
             if (
-              selectedTeacherGroup !== 'ALL' &&
-              s.group !== selectedTeacherGroup
+              effectiveTeacherGroup !== 'ALL' &&
+              s.group !== effectiveTeacherGroup
             ) {
               return false;
             }
@@ -1096,7 +1112,7 @@ export default function TeacherDashboardPage() {
                   Section Filter
                 </label>
                 <select
-                  value={selectedTeacherSection}
+                  value={effectiveTeacherSection}
                   onChange={(e) => setSelectedTeacherSection(e.target.value)}
                   className="w-full px-3 py-2 rounded-xl bg-surface-container-low border border-outline-variant/30 font-semibold text-on-surface"
                 >
@@ -1114,8 +1130,11 @@ export default function TeacherDashboardPage() {
                   Group Track
                 </label>
                 <select
-                  value={selectedTeacherGroup}
-                  onChange={(e) => setSelectedTeacherGroup(e.target.value as 'ALL' | AcademicGroup)}
+                  value={effectiveTeacherGroup}
+                  onChange={(e) => {
+                    setSelectedTeacherGroup(e.target.value as 'ALL' | AcademicGroup);
+                    setSelectedTeacherSection('ALL');
+                  }}
                   className="w-full px-3 py-2 rounded-xl bg-surface-container-low border border-outline-variant/30 font-semibold text-on-surface"
                 >
                   <option value="ALL">All Groups / Tracks</option>
