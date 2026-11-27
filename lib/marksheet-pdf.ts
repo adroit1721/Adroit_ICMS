@@ -124,6 +124,7 @@ export async function downloadMarksheetAsPdf(
   stage.style.overflow = 'hidden';
 
   const clone = sourceEl.cloneNode(true) as HTMLElement;
+  clone.setAttribute('data-pdf-export', 'true');
   clone.style.width = `${targetW}px`;
   clone.style.maxWidth = `${targetW}px`;
   clone.style.minHeight = `${targetH}px`;
@@ -139,6 +140,40 @@ export async function downloadMarksheetAsPdf(
   stage.appendChild(clone);
   host.appendChild(stage);
   document.body.appendChild(host);
+
+  // Strip scroll containers inside the cloned marksheet so html-to-image never paints native scrollbars
+  clone.querySelectorAll<HTMLElement>('*').forEach((el) => {
+    const hadScrollClass =
+      el.classList.contains('ms-table-wrap') ||
+      el.classList.contains('overflow-x-auto') ||
+      el.classList.contains('overflow-y-auto') ||
+      el.classList.contains('overflow-auto') ||
+      el.classList.contains('overflow-x-scroll') ||
+      el.classList.contains('overflow-y-scroll') ||
+      el.classList.contains('overflow-scroll');
+    const cs = window.getComputedStyle(el);
+    const hasScrollOverflow =
+      cs.overflowX === 'auto' ||
+      cs.overflowX === 'scroll' ||
+      cs.overflowY === 'auto' ||
+      cs.overflowY === 'scroll';
+
+    if (hadScrollClass || hasScrollOverflow) {
+      el.classList.remove(
+        'overflow-x-auto',
+        'overflow-y-auto',
+        'overflow-auto',
+        'overflow-x-scroll',
+        'overflow-y-scroll',
+        'overflow-scroll'
+      );
+      el.style.overflow = 'visible';
+      el.style.overflowX = 'visible';
+      el.style.overflowY = 'visible';
+      el.style.maxHeight = 'none';
+      el.style.height = 'auto';
+    }
+  });
 
   try {
     await inlineExternalImages(clone);

@@ -1635,12 +1635,15 @@ export default function MarksheetDocument({
   );
 
   const renderTableSection = () => (
-    <div key="table" className="overflow-x-auto relative">
+    <div
+      key="table"
+      className="ms-table-wrap overflow-x-auto md:overflow-visible print:overflow-visible relative"
+    >
       <table className="w-full text-left border-collapse text-[11px] border border-slate-300 bg-white/95">
         <thead>
           <tr className="bg-slate-100 text-slate-900 font-bold text-center">
             {t.showSubjectCode && (
-              <th className={`${rowPy} px-2 border border-slate-300 text-left w-14`}>
+              <th className={`${rowPy} px-2 border border-slate-300 text-left min-w-[54px] w-[70px]`}>
                 <InlineEditable
                   {...editableBindings('codeColLabel')}
                   value={L.codeColLabel}

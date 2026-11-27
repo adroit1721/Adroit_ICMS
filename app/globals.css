@@ -168,6 +168,12 @@
     width: var(--ms-print-width, 297mm) !important;
     min-height: var(--ms-print-min-height, 208mm) !important;
   }
+  .a4-marksheet-sheet .ms-table-wrap {
+    overflow: visible !important;
+    overflow-x: visible !important;
+    overflow-y: visible !important;
+    max-height: none !important;
+  }
   .a4-marksheet-sheet .no-print,
   .no-print {
     display: none !important;
@@ -188,6 +194,13 @@
   .tr-sheet-print-container.tr-a4 {
     page: tr-a4;
   }
+}
+
+.a4-marksheet-sheet[data-pdf-export="true"] .ms-table-wrap {
+  overflow: visible !important;
+  overflow-x: visible !important;
+  overflow-y: visible !important;
+  max-height: none !important;
 }
 
 /* Compact vertical rhythm pass applied automatically when 12+ subject sheets overflow single A4 bounds */
