@@ -1,0 +1,306 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta content="width=device-width, initial-scale=1.0" name="viewport"><meta content="web_standard" name="shell-type"><link href="https://fonts.googleapis.com" rel="preconnect"><link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"><link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;family=Plus+Jakarta+Sans:wght@600;700&amp;display=swap" rel="stylesheet"><link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@24,400,0,0" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"><style>@layer base{html,body{margin:0;padding:0;}body{overscroll-behavior:none;}main>:first-child{margin-top:0!important;}main>:last-child{margin-bottom:0!important;}}::-webkit-scrollbar{display:none;}</style><script src="https://cdn.tailwindcss.com"></script><script id="tailwind-config">tailwind.config={"darkMode":"class","theme":{"extend":{"colors":{"secondary-fixed-dim":"#94ccff","primary-fixed-dim":"#ffb59f","error-container":"#ffdad6","surface-container-lowest":"#ffffff","surface-dim":"#d2d9f4","surface-container-high":"#e2e7ff","inverse-on-surface":"#eef0ff","on-primary":"#ffffff","secondary-fixed":"#cde5ff","surface-container-low":"#f2f3ff","on-primary-fixed":"#3a0a00","surface-container-highest":"#dae2fd","inverse-primary":"#ffb59f","background":"#faf8ff","tertiary-fixed-dim":"#4edea3","surface-container":"#eaedff","on-error":"#ffffff","outline":"#8b716a","on-tertiary-fixed-variant":"#005236","surface-bright":"#faf8ff","error":"#ba1a1a","inverse-surface":"#283044","on-primary-fixed-variant":"#842503","tertiary-container":"#006343","primary-container":"#9a3412","secondary":"#006399","secondary-container":"#7bc2ff","on-secondary":"#ffffff","on-background":"#131b2e","outline-variant":"#dec0b7","on-tertiary-container":"#55e4a8","on-secondary-fixed":"#001d32","surface-tint":"#a53c19","tertiary":"#004930","on-error-container":"#93000a","primary-fixed":"#ffdbd1","surface-variant":"#dae2fd","on-tertiary-fixed":"#002113","surface":"#faf8ff","on-primary-container":"#ffbda9","on-surface":"#131b2e","tertiary-fixed":"#6ffbbe","on-secondary-container":"#004f7b","on-secondary-fixed-variant":"#004b74","primary":"#781f00","on-tertiary":"#ffffff","on-surface-variant":"#57423c"},"borderRadius":{"DEFAULT":"0.25rem","lg":"0.5rem","xl":"0.75rem","full":"9999px"},"spacing":{"space-xl":"2.5rem","margin-lg":"3rem","margin-sm":"1rem","space-sm":"0.5rem","space-lg":"1.5rem","gutter-sm":"1rem","gutter":"1.5rem","space-md":"1rem","gutter-lg":"2rem","space-xs":"0.25rem","margin":"2rem"},"fontFamily":{"display-lg":["Plus Jakarta Sans"],"title-md":["Inter"],"label-md":["Inter"],"headline-lg":["Plus Jakarta Sans"],"body-md":["Inter"],"title-lg":["Inter"],"headline-lg-mobile":["Plus Jakarta Sans"],"label-sm":["Inter"],"display-lg-mobile":["Plus Jakarta Sans"],"headline-sm":["Plus Jakarta Sans"],"body-sm":["Inter"],"headline-md":["Plus Jakarta Sans"],"body-lg":["Inter"]},"fontSize":{"display-lg":["48px",{"lineHeight":"56px","letterSpacing":"-0.025em","fontWeight":"700"}],"title-md":["16px",{"lineHeight":"24px","letterSpacing":"-0.005em","fontWeight":"600"}],"label-md":["13px",{"lineHeight":"18px","letterSpacing":"0.01em","fontWeight":"500"}],"headline-lg":["32px",{"lineHeight":"40px","letterSpacing":"-0.02em","fontWeight":"700"}],"body-md":["14px",{"lineHeight":"22px","fontWeight":"400"}],"title-lg":["18px",{"lineHeight":"26px","letterSpacing":"-0.01em","fontWeight":"600"}],"headline-lg-mobile":["26px",{"lineHeight":"34px","letterSpacing":"-0.015em","fontWeight":"600"}],"label-sm":["11px",{"lineHeight":"16px","letterSpacing":"0.04em","fontWeight":"600"}],"display-lg-mobile":["36px",{"lineHeight":"44px","letterSpacing":"-0.02em","fontWeight":"700"}],"headline-sm":["20px",{"lineHeight":"28px","letterSpacing":"-0.01em","fontWeight":"600"}],"body-sm":["12px",{"lineHeight":"18px","fontWeight":"400"}],"headline-md":["24px",{"lineHeight":"32px","letterSpacing":"-0.015em","fontWeight":"600"}],"body-lg":["16px",{"lineHeight":"26px","fontWeight":"400"}]}}}}</script></head><body class="bg-background font-body-md text-on-surface antialiased selection:bg-primary-fixed selection:text-on-primary-fixed min-h-screen flex flex-col relative"><div class="fixed inset-0 pointer-events-none -z-10 overflow-hidden"><div class="absolute -top-40 left-1/4 w-[500px] h-[500px] bg-secondary-fixed/20 rounded-full blur-[120px]"></div><div class="absolute top-1/3 -right-40 w-[600px] h-[600px] bg-primary-fixed/25 rounded-full blur-[140px]"></div></div><header class="fixed top-0 left-0 right-0 w-full z-50 bg-white/75 backdrop-blur-2xl shadow-[0_4px_24px_-4px_rgba(19,27,46,0.05)]"><div class="w-full max-w-7xl mx-auto px-6 lg:px-12 py-3 flex flex-col items-center justify-center relative"><div class="absolute right-6 lg:right-12 top-4 hidden sm:flex items-center gap-3 shrink-0"><div class="flex items-center gap-2"><span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-500/10 text-emerald-800 font-label-sm text-label-sm border border-emerald-500/20"><span class="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>Admission Open</span><span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-sky-500/10 text-sky-800 font-label-sm text-label-sm border border-sky-500/20"><span class="w-1.5 h-1.5 rounded-full bg-sky-500"></span>Results Published</span></div></div><div class="flex flex-col items-center text-center"><a class="flex flex-col items-center group" href="#"><img alt="Aethelgard Academy Crest" class="h-10 w-auto object-contain mb-1 transition-transform group-hover:scale-105" src="https://lh3.googleusercontent.com/aida-public/AB6AXuCoUgSJB0i8cnnNuZ5XgslAKf0c9kSxR9zfluYj5-5hqwq_RUY3rgHqd5KWV3GvJikA7aM2PZtFkxjrtj6V4KkOXYBoGNo0bubmRfTO3eQB19j8NsvXoAgfqGfuRnlj4kT9_Z1FcOKgJNRCvhnE-PQ6G_Oej4Tic7nIZI25IBzoYjNFzYRA239ER-FlZPhFxfsGHuwaQqUu_1MifNH9r2Qup_cey4_34QqZczyMXZ5A"><div class="flex items-center gap-2"><span class="font-headline-sm text-headline-sm text-on-surface tracking-tight leading-none">Aethelgard Academy</span></div><span class="font-label-sm text-label-sm uppercase tracking-widest text-on-surface-variant font-medium mt-1">Sapientia, Virtus, Excellentia • Est. 1984</span></a></div><nav class="mt-3 flex items-center justify-center flex-wrap gap-1 sm:gap-2 px-4 py-1.5 rounded-full bg-surface-container-lowest/60 backdrop-blur-md shadow-sm border border-outline-variant/30" data-active-classes="text-primary-container font-semibold"><a aria-current="page" class="px-3 py-1 rounded-full text-primary-container font-semibold font-label-md text-label-md transition-colors hover:text-primary" data-path="home" href="#">Home</a><a class="px-3 py-1 rounded-full font-label-md text-label-md text-on-surface-variant hover:text-on-surface hover:bg-white/60 transition-colors" data-path="about-us" href="#">About Us</a><a class="px-3 py-1 rounded-full font-label-md text-label-md text-on-surface-variant hover:text-on-surface hover:bg-white/60 transition-colors" data-path="academics-overview" href="#">Academics</a><a class="px-3 py-1 rounded-full font-label-md text-label-md text-on-surface-variant hover:text-on-surface hover:bg-white/60 transition-colors" data-path="admissions-info" href="#">Teacher's &amp; Staff</a><a class="px-3 py-1 rounded-full font-label-md text-label-md text-on-surface-variant hover:text-on-surface hover:bg-white/60 transition-colors" data-path="campus-life" href="#">Students Corner</a><a class="px-3 py-1 rounded-full font-label-md text-label-md text-on-surface-variant hover:text-on-surface hover:bg-white/60 transition-colors" data-path="news-and-events" href="#">Alumni</a><a class="px-3 py-1 rounded-full font-label-md text-label-md text-on-surface-variant hover:text-on-surface hover:bg-white/60 transition-colors" data-path="portal-login" href="#">Contact</a></nav></div></header><main class="w-full flex-1 bg-transparent pt-44"><div class="flex flex-col w-full">
+<!-- Interactive Architectural Panorama Slider -->
+<section class="w-full max-w-7xl mx-auto px-6 lg:px-12 pt-6 pb-12">
+<div class="relative w-full aspect-[21/9] sm:aspect-[16/9] lg:aspect-[21/9] rounded-[2rem] overflow-hidden shadow-[0_16px_40px_-12px_rgba(19,27,46,0.08)] group bg-surface-container-low">
+<!-- Slides -->
+<div class="relative w-full h-full" id="hero-slider">
+<div class="slide absolute inset-0 transition-opacity duration-700 ease-out opacity-100">
+<img alt="Aethelgard Modern Glass Campus Quadrangle and Academic Center" class="w-full h-full object-cover" src="https://lh3.googleusercontent.com/aida-public/AB6AXuCxy9Qdui3Ujl--yuVNPn0YKLzmvSHcfxEvqIpxb8rDUS2khj7SIwwY3WthxVOor_9l1ADkeRtmuPS-EZYSpe_9XbQj4JSgwjOLBsvDquz5qAMCCXUDPJlyH7Mcbt5R1IqHV5lSM76Y44tjAI-Cd0V3ELW5QJNtLB3iy3BNdpKsF23u7kcl3W4qVxwo860eo-8SdRLCAHSdVPdivc6NjtV-3-Dz51Eq3pczOmlq-Kfr">
+<div class="absolute inset-0 bg-gradient-to-t from-black/20 via-transparent to-transparent pointer-events-none"></div>
+</div>
+<div class="slide absolute inset-0 transition-opacity duration-700 ease-out opacity-0 pointer-events-none">
+<img class="w-full h-full object-cover" data-alt="Expansive panoramic view of modern architectural library interior at Aethelgard Academy, multi-level glass balconies, students working at blonde wood tables, flooded with natural morning sunlight, clean lines, serene atmosphere" src="https://lh3.googleusercontent.com/aida-public/AB6AXuAiRyNiykf57sEF61R522MQs3UWCciFhymjrAxqXx0FPUH0BfcXGwh4cfvSopzQI_hmAMWsdbC6MJXIYBCfDWVGZk1Sr-4-2egSsIQDdwbNTfyYUlsnrwNijrn3-5_c6qCdEdLsyRT5VPuJvG9C_wT3OInNgZtrxDAz9o-idpOdA8v3lV8iyIHvfyS3Vto3gwksCMuvWbuxn9rKIjiFU3Zlmmm3unKU1NZdjHbJFnMS">
+<div class="absolute inset-0 bg-gradient-to-t from-black/20 via-transparent to-transparent pointer-events-none"></div>
+</div>
+<div class="slide absolute inset-0 transition-opacity duration-700 ease-out opacity-0 pointer-events-none">
+<img class="w-full h-full object-cover" data-alt="State-of-the-art collegiate innovation pavilion and courtyard at dusk, architectural uplighting reflecting on glass facades and clean limestone walkways, students in quiet discussion outdoors, lush green manicured lawn" src="https://lh3.googleusercontent.com/aida-public/AB6AXuBDWxODj6fL_c1Dt9Ie0d1Csv6xO2Zv1eT9trXH9yGbiZPTYWuDcIwBxzK5msYJyiD2A_dx9tvdFLnoO6DGCqlmmHZKBRMdGvT7_tcC84rE9Sd1c8M9CpLl4diCeqJGixS6tJJxxLU0E6k1WC_-lQky6HMktQL-8iAJY4M6YOIblzJf49HRiM4Ji48MSeDkR0iZV92CKcl74bTwBb-oW2hSUSfi9-xIwbnlUKzSzNKo">
+<div class="absolute inset-0 bg-gradient-to-t from-black/20 via-transparent to-transparent pointer-events-none"></div>
+</div>
+</div>
+<!-- Navigation Arrows -->
+<div class="absolute inset-y-0 left-6 right-6 flex items-center justify-between pointer-events-none">
+<button aria-label="Previous Slide" class="pointer-events-auto w-12 h-12 rounded-full bg-white/70 hover:bg-white/95 text-on-surface backdrop-blur-xl shadow-lg flex items-center justify-center transition-all -translate-x-2 group-hover:translate-x-0 active:scale-95" id="slider-prev">
+<span class="material-symbols-outlined text-[20px]">chevron_left</span>
+</button>
+<button aria-label="Next Slide" class="pointer-events-auto w-12 h-12 rounded-full bg-white/70 hover:bg-white/95 text-on-surface backdrop-blur-xl shadow-lg flex items-center justify-center transition-all translate-x-2 group-hover:translate-x-0 active:scale-95" id="slider-next">
+<span class="material-symbols-outlined text-[20px]">chevron_right</span>
+</button>
+</div>
+<!-- Frosted Pill Indicator Bar -->
+<div class="absolute bottom-6 left-1/2 -translate-x-1/2 px-3 py-1.5 rounded-full bg-white/60 backdrop-blur-xl shadow-md flex items-center gap-2">
+<button aria-label="Slide 1" class="slider-dot w-7 h-2 rounded-full bg-primary-container transition-all" data-index="0"></button>
+<button aria-label="Slide 2" class="slider-dot w-2 h-2 rounded-full bg-on-surface/30 hover:bg-on-surface/60 transition-all" data-index="1"></button>
+<button aria-label="Slide 3" class="slider-dot w-2 h-2 rounded-full bg-on-surface/30 hover:bg-on-surface/60 transition-all" data-index="2"></button>
+</div>
+<!-- Architectural Badge Overlay -->
+<div class="absolute top-6 left-6 hidden sm:inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-white/75 backdrop-blur-md shadow-sm">
+<span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+<span class="font-label-sm text-label-sm tracking-wider uppercase text-on-surface font-semibold">Highspire Academic Park</span>
+</div>
+</div>
+</section>
+<!-- Quick Stats Ribbon -->
+<section class="w-full max-w-7xl mx-auto px-6 lg:px-12 -mt-4 mb-16">
+<div class="grid grid-cols-1 md:grid-cols-3 gap-6 p-4 lg:p-6 rounded-[2rem] bg-white/70 backdrop-blur-2xl shadow-[0_12px_36px_-6px_rgba(19,27,46,0.04)]"><div class="flex items-center gap-4 p-5 rounded-2xl bg-surface-container-lowest/60 hover:bg-white transition-all shadow-sm"><div class="w-12 h-12 rounded-xl bg-primary-fixed/60 text-primary-container flex items-center justify-center shrink-0"><span class="material-symbols-outlined text-[24px]">school</span></div><div class="min-w-0"><div class="font-headline-md text-headline-md text-on-surface tracking-tight">2,850+</div><div class="font-title-md text-title-md text-on-surface font-semibold">Students</div><div class="font-label-sm text-label-sm text-on-surface-variant truncate">Enrolled Scholars</div></div></div><div class="flex items-center gap-4 p-5 rounded-2xl bg-surface-container-lowest/60 hover:bg-white transition-all shadow-sm"><div class="w-12 h-12 rounded-xl bg-secondary-fixed/60 text-secondary flex items-center justify-center shrink-0"><span class="material-symbols-outlined text-[24px]">groups</span></div><div class="min-w-0"><div class="font-headline-md text-headline-md text-on-surface tracking-tight">248+</div><div class="font-title-md text-title-md text-on-surface font-semibold">Teachers</div><div class="font-label-sm text-label-sm text-on-surface-variant truncate">Certified Faculty</div></div></div><div class="flex items-center gap-4 p-5 rounded-2xl bg-surface-container-lowest/60 hover:bg-white transition-all shadow-sm"><div class="w-12 h-12 rounded-xl bg-tertiary-fixed/60 text-tertiary flex items-center justify-center shrink-0"><span class="material-symbols-outlined text-[24px]">workspace_premium</span></div><div class="min-w-0"><div class="font-headline-md text-headline-md text-on-surface tracking-tight">14,500+</div><div class="font-title-md text-title-md text-on-surface font-semibold">Alumni</div><div class="font-label-sm text-label-sm text-on-surface-variant truncate">Worldwide Network</div></div></div></div>
+</section>
+<!-- Split Section: Notice Board & Principal's Address -->
+<section class="w-full max-w-7xl mx-auto px-6 lg:px-12 pb-20">
+<div class="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
+<!-- Left Column: Frosted Glass Notice Board -->
+<div class="lg:col-span-6 rounded-[2rem] bg-white/70 backdrop-blur-2xl shadow-[0_16px_40px_-8px_rgba(19,27,46,0.04)] p-8 flex flex-col justify-between h-full">
+<div>
+<!-- Header and Live Pulse -->
+<div class="flex items-center justify-between pb-6">
+<div class="flex items-center gap-3">
+<span class="relative flex h-3 w-3">
+<span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary-container opacity-75"></span>
+<span class="relative inline-flex rounded-full h-3 w-3 bg-primary-container"></span>
+</span>
+<h2 class="font-headline-sm text-headline-sm text-on-surface tracking-tight">Academy Notices &amp; Circulars</h2>
+</div>
+<a class="group flex items-center gap-1 font-label-md text-label-md text-primary-container hover:text-primary transition-colors" data-path="news-and-events" href="#">
+<span>View All</span>
+<span class="material-symbols-outlined text-[16px] group-hover:translate-x-0.5 transition-transform">arrow_forward</span>
+</a>
+</div>
+<!-- Category Filter Tabs -->
+<div class="flex items-center gap-2 pb-6 overflow-x-auto" id="circular-tabs">
+<button class="circular-tab px-4 py-1.5 rounded-full font-label-sm text-label-sm bg-primary-container text-on-primary shadow-sm transition-all" data-category="all">All</button>
+<button class="circular-tab px-4 py-1.5 rounded-full font-label-sm text-label-sm bg-surface-container-lowest text-on-surface-variant hover:text-on-surface hover:bg-white transition-all" data-category="academic">Academic</button>
+<button class="circular-tab px-4 py-1.5 rounded-full font-label-sm text-label-sm bg-surface-container-lowest text-on-surface-variant hover:text-on-surface hover:bg-white transition-all" data-category="admissions">Admissions</button>
+<button class="circular-tab px-4 py-1.5 rounded-full font-label-sm text-label-sm bg-surface-container-lowest text-on-surface-variant hover:text-on-surface hover:bg-white transition-all" data-category="examinations">Examinations</button>
+</div>
+<!-- Circular Items List -->
+<div class="space-y-3" id="notices-container">
+<!-- Notice 1 -->
+<div class="notice-row group p-4 rounded-2xl bg-surface-container-lowest/70 hover:bg-white transition-all flex items-center justify-between gap-4" data-type="admissions">
+<div class="flex items-start gap-3 min-w-0">
+<div class="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-700 flex items-center justify-center shrink-0 mt-0.5">
+<span class="material-symbols-outlined text-[20px]">workspace_premium</span>
+</div>
+<div class="min-w-0">
+<div class="flex items-center gap-2 mb-1">
+<span class="px-2 py-0.5 rounded-full font-label-sm text-label-sm bg-emerald-100/70 text-emerald-900">New</span>
+<span class="font-body-sm text-body-sm text-on-surface-variant">Oct 24, 2024</span>
+</div>
+<h3 class="font-title-md text-title-md text-on-surface group-hover:text-primary-container transition-colors truncate">Annual Merit Scholarship Applications Open</h3>
+<p class="font-body-sm text-body-sm text-on-surface-variant truncate">Endowed grant applications for the 2025-26 academic session are now accepted.</p>
+</div>
+</div>
+<button aria-label="Download Circular" class="w-9 h-9 rounded-full bg-surface-container-low hover:bg-primary-fixed text-on-surface hover:text-on-primary-fixed flex items-center justify-center shrink-0 transition-colors">
+<span class="material-symbols-outlined text-[18px]">download</span>
+</button>
+</div>
+<!-- Notice 2 -->
+<div class="notice-row group p-4 rounded-2xl bg-surface-container-lowest/70 hover:bg-white transition-all flex items-center justify-between gap-4" data-type="examinations">
+<div class="flex items-start gap-3 min-w-0">
+<div class="w-10 h-10 rounded-xl bg-primary-fixed/40 text-primary-container flex items-center justify-center shrink-0 mt-0.5">
+<span class="material-symbols-outlined text-[20px]">edit_calendar</span>
+</div>
+<div class="min-w-0">
+<div class="flex items-center gap-2 mb-1">
+<span class="px-2 py-0.5 rounded-full font-label-sm text-label-sm bg-primary-fixed text-primary font-semibold">Exam</span>
+<span class="font-body-sm text-body-sm text-on-surface-variant">Oct 21, 2024</span>
+</div>
+<h3 class="font-title-md text-title-md text-on-surface group-hover:text-primary-container transition-colors truncate">Grade 10 &amp; 12 Board Mock Examination Schedule</h3>
+<p class="font-body-sm text-body-sm text-on-surface-variant truncate">Detailed date sheet and invigilation guidelines uploaded to student portal.</p>
+</div>
+</div>
+<button aria-label="Download Schedule" class="w-9 h-9 rounded-full bg-surface-container-low hover:bg-primary-fixed text-on-surface hover:text-on-primary-fixed flex items-center justify-center shrink-0 transition-colors">
+<span class="material-symbols-outlined text-[18px]">download</span>
+</button>
+</div>
+<!-- Notice 3 -->
+<div class="notice-row group p-4 rounded-2xl bg-surface-container-lowest/70 hover:bg-white transition-all flex items-center justify-between gap-4" data-type="academic">
+<div class="flex items-start gap-3 min-w-0">
+<div class="w-10 h-10 rounded-xl bg-sky-50 text-sky-800 flex items-center justify-center shrink-0 mt-0.5">
+<span class="material-symbols-outlined text-[20px]">trophy</span>
+</div>
+<div class="min-w-0">
+<div class="flex items-center gap-2 mb-1">
+<span class="px-2 py-0.5 rounded-full font-label-sm text-label-sm bg-secondary-fixed text-on-secondary-container font-semibold">Results</span>
+<span class="font-body-sm text-body-sm text-on-surface-variant">Oct 18, 2024</span>
+</div>
+<h3 class="font-title-md text-title-md text-on-surface group-hover:text-primary-container transition-colors truncate">International STEM Olympiad Selection Results</h3>
+<p class="font-body-sm text-body-sm text-on-surface-variant truncate">Congratulations to the 14 Aethelgard delegates advancing to the Zurich finals.</p>
+</div>
+</div>
+<button aria-label="View Results" class="w-9 h-9 rounded-full bg-surface-container-low hover:bg-primary-fixed text-on-surface hover:text-on-primary-fixed flex items-center justify-center shrink-0 transition-colors">
+<span class="material-symbols-outlined text-[18px]">visibility</span>
+</button>
+</div>
+<!-- Notice 4 -->
+<div class="notice-row group p-4 rounded-2xl bg-surface-container-lowest/70 hover:bg-white transition-all flex items-center justify-between gap-4" data-type="academic">
+<div class="flex items-start gap-3 min-w-0">
+<div class="w-10 h-10 rounded-xl bg-surface-container text-on-surface flex items-center justify-center shrink-0 mt-0.5">
+<span class="material-symbols-outlined text-[20px]">handshake</span>
+</div>
+<div class="min-w-0">
+<div class="flex items-center gap-2 mb-1">
+<span class="px-2 py-0.5 rounded-full font-label-sm text-label-sm bg-surface-container-high text-on-surface font-semibold">Notice</span>
+<span class="font-body-sm text-body-sm text-on-surface-variant">Oct 15, 2024</span>
+</div>
+<h3 class="font-title-md text-title-md text-on-surface group-hover:text-primary-container transition-colors truncate">Parent-Teacher Leadership Conference Invitation</h3>
+<p class="font-body-sm text-body-sm text-on-surface-variant truncate">Slot registrations for in-person and tele-dialogue sessions close this Friday.</p>
+</div>
+</div>
+<button aria-label="Download Invitation" class="w-9 h-9 rounded-full bg-surface-container-low hover:bg-primary-fixed text-on-surface hover:text-on-primary-fixed flex items-center justify-center shrink-0 transition-colors">
+<span class="material-symbols-outlined text-[18px]">download</span>
+</button>
+</div>
+</div>
+</div>
+<!-- Real-time sync timestamp badge -->
+<div class="pt-6 mt-6 flex items-center justify-between bg-surface-container-lowest/40 rounded-xl px-4 py-2.5">
+<div class="flex items-center gap-2">
+<span class="material-symbols-outlined text-[16px] text-on-surface-variant">sync</span>
+<span class="font-label-sm text-label-sm text-on-surface-variant">Synchronized with Central Academic Registry</span>
+</div>
+<span class="font-label-sm text-label-sm text-on-surface font-semibold">12m ago</span>
+</div>
+</div>
+<!-- Right Column: Principal's Message Card -->
+<div class="lg:col-span-6 rounded-[2rem] bg-white/70 backdrop-blur-2xl shadow-[0_16px_40px_-8px_rgba(19,27,46,0.04)] p-8 flex flex-col justify-between">
+<div>
+<!-- Header and Overline -->
+<div class="flex items-center justify-between pb-6">
+<div class="flex flex-col">
+<span class="font-label-sm text-label-sm uppercase tracking-widest text-primary-container font-semibold">Leadership Address</span>
+<h2 class="font-headline-sm text-headline-sm text-on-surface tracking-tight mt-0.5">Message from the Principal</h2>
+</div>
+<div class="w-10 h-10 rounded-full bg-primary-fixed/50 text-primary-container flex items-center justify-center">
+<span class="material-symbols-outlined text-[20px]">format_quote</span>
+</div>
+</div>
+<!-- Principal Portrait & Intro Split -->
+<div class="flex flex-col sm:flex-row items-center sm:items-start gap-6 pb-6">
+<div class="relative shrink-0">
+<div class="w-28 h-28 sm:w-32 sm:h-32 rounded-2xl overflow-hidden shadow-md bg-white p-1">
+<img alt="Dr. Eleanor Vance, Principal of Aethelgard Academy in her office" class="w-full h-full object-cover rounded-xl" src="https://lh3.googleusercontent.com/aida-public/AB6AXuBweL0uZqstijGXekcr6i8Y0Jrdx9mIU1KbMtUfls1jmApy_fp1kzwXw9bhCZTKM3TOHb_3T9kx3fmCZBrPR3tdmLMVjgPLWiKQqMAlz5Bztxrm3u8G8M8DbfSFybE3Zm6EdEtik_c_34uBSTIQhAxzShVp3zdOJBcti-WZmNBqJpYmMAXYsRYZg4RdesVixiyO13JL_TXWZjaYZPtcZ-Wc3JSjocMgJBH_vIEU4iC7">
+</div>
+<div class="absolute -bottom-2 -right-2 w-7 h-7 rounded-full bg-emerald-600 text-white flex items-center justify-center shadow-sm" title="Office Active">
+<span class="material-symbols-outlined text-[14px]">verified</span>
+</div>
+</div>
+<div class="flex flex-col text-center sm:text-left min-w-0">
+<h3 class="font-title-lg text-title-lg text-on-surface">Dr. Eleanor Vance</h3>
+<p class="font-label-md text-label-md text-primary-container font-medium mt-0.5">Ph.D. (Oxon) — Head of School</p>
+<div class="mt-3 p-3 rounded-xl bg-surface-container-lowest/80 text-on-surface-variant font-body-sm text-body-sm italic">
+                “Fostering intellectual rigor, empathetic leadership, and boundless curiosity in every scholar.”
+              </div>
+</div>
+</div>
+<!-- Message Narrative -->
+<div class="space-y-3 font-body-md text-body-md text-on-surface-variant">
+<p>
+              Welcome to Aethelgard Academy. For over half a century, our pedagogical framework has balanced honored classical scholarship with frontier scientific exploration.
+            </p>
+<p>
+              We view each matriculating student not merely as a scholar of curricula, but as an architect of the global future. Within our laboratories, studios, and seminar halls, you will find a collaborative culture engineered to celebrate inquisitiveness, cultivate moral resilience, and nurture daring aspirations.
+            </p>
+</div>
+</div>
+<!-- Signature & Call to Action -->
+<div class="pt-6 mt-6 flex flex-col sm:flex-row items-center justify-between gap-4">
+<div class="flex items-center gap-3">
+<!-- Simulated elegant handwritten signature mark in SVG -->
+<svg class="h-10 w-36 text-on-surface opacity-75" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" viewBox="0 0 160 50">
+<path d="M 10,38 C 22,12 35,8 42,28 C 45,36 49,38 58,22 C 65,10 75,34 85,25 C 95,16 102,40 120,24 C 132,14 145,28 152,22"></path>
+<path d="M 28,30 C 50,28 100,26 140,29"></path>
+</svg>
+<div class="hidden sm:block h-6 w-px bg-surface-container-highest"></div>
+<span class="font-label-sm text-label-sm text-on-surface-variant hidden sm:inline">Executive Office</span>
+</div>
+<a class="inline-flex items-center gap-2 px-5 py-2.5 rounded-full bg-primary-container hover:bg-primary text-on-primary font-label-md text-label-md shadow-sm transition-all active:scale-98" data-path="about-us" href="#">
+<span>Read Full Address</span>
+<span class="material-symbols-outlined text-[18px]">arrow_forward</span>
+</a>
+</div>
+</div>
+</div>
+</section>
+<!-- Interactive Script for Slider and Tabs -->
+<script>
+    (function initHomeInteractions() {
+      // Photo Slider
+      const slides = document.querySelectorAll('#hero-slider .slide');
+      const dots = document.querySelectorAll('.slider-dot');
+      const btnPrev = document.getElementById('slider-prev');
+      const btnNext = document.getElementById('slider-next');
+      let currentSlide = 0;
+      let slideTimer = null;
+
+      function updateSlide(index) {
+        if (!slides.length) return;
+        currentSlide = (index + slides.length) % slides.length;
+        slides.forEach((s, i) => {
+          if (i === currentSlide) {
+            s.classList.remove('opacity-0', 'pointer-events-none');
+            s.classList.add('opacity-100');
+          } else {
+            s.classList.add('opacity-0', 'pointer-events-none');
+            s.classList.remove('opacity-100');
+          }
+        });
+
+        dots.forEach((d, i) => {
+          if (i === currentSlide) {
+            d.className = 'slider-dot w-7 h-2 rounded-full bg-primary-container transition-all';
+          } else {
+            d.className = 'slider-dot w-2 h-2 rounded-full bg-on-surface/30 hover:bg-on-surface/60 transition-all';
+          }
+        });
+      }
+
+      function nextSlide() {
+        updateSlide(currentSlide + 1);
+      }
+
+      function startTimer() {
+        clearInterval(slideTimer);
+        slideTimer = setInterval(nextSlide, 6500);
+      }
+
+      if (btnNext && btnPrev) {
+        btnNext.addEventListener('click', () => { nextSlide(); startTimer(); });
+        btnPrev.addEventListener('click', () => { updateSlide(currentSlide - 1); startTimer(); });
+      }
+
+      dots.forEach((dot) => {
+        dot.addEventListener('click', (e) => {
+          const idx = parseInt(e.currentTarget.getAttribute('data-index') || '0', 10);
+          updateSlide(idx);
+          startTimer();
+        });
+      });
+
+      startTimer();
+
+      // Notice Board Filtering
+      const tabs = document.querySelectorAll('.circular-tab');
+      const noticeRows = document.querySelectorAll('.notice-row');
+
+      tabs.forEach(tab => {
+        tab.addEventListener('click', () => {
+          tabs.forEach(t => {
+            t.className = 'circular-tab px-4 py-1.5 rounded-full font-label-sm text-label-sm bg-surface-container-lowest text-on-surface-variant hover:text-on-surface hover:bg-white transition-all';
+          });
+          tab.className = 'circular-tab px-4 py-1.5 rounded-full font-label-sm text-label-sm bg-primary-container text-on-primary shadow-sm transition-all';
+
+          const cat = tab.getAttribute('data-category');
+          noticeRows.forEach(row => {
+            const rowType = row.getAttribute('data-type');
+            if (cat === 'all' || rowType === cat) {
+              row.style.display = 'flex';
+            } else {
+              row.style.display = 'none';
+            }
+          });
+        });
+      });
+    })();
+  </script>
+</div></main><footer class="w-full bg-white/60 backdrop-blur-2xl mt-auto shadow-[0_-4px_24px_-4px_rgba(19,27,46,0.03)]"><div class="max-w-7xl mx-auto px-6 lg:px-12 py-space-xl"><div class="grid grid-cols-1 md:grid-cols-4 gap-8 mb-12"><div class="md:col-span-1"><div class="flex items-center gap-3 mb-4"><img alt="Aethelgard Academy Logo" class="h-8 w-auto object-contain" src="https://lh3.googleusercontent.com/aida-public/AB6AXuCoUgSJB0i8cnnNuZ5XgslAKf0c9kSxR9zfluYj5-5hqwq_RUY3rgHqd5KWV3GvJikA7aM2PZtFkxjrtj6V4KkOXYBoGNo0bubmRfTO3eQB19j8NsvXoAgfqGfuRnlj4kT9_Z1FcOKgJNRCvhnE-PQ6G_Oej4Tic7nIZI25IBzoYjNFzYRA239ER-FlZPhFxfsGHuwaQqUu_1MifNH9r2Qup_cey4_34QqZczyMXZ5A"><span class="font-headline-sm text-headline-sm text-on-surface">Aethelgard</span></div><p class="font-body-sm text-body-sm text-on-surface-variant">Providing luminous education, holistic development, and scholarly excellence since 1984.</p></div><div><h4 class="font-label-md text-label-md uppercase tracking-wider text-on-surface font-semibold mb-4">Academics</h4><ul class="space-y-2 font-body-sm text-body-sm text-on-surface-variant"><li><a class="hover:text-primary transition-colors" data-path="academics-overview" href="#">Curriculum Structure</a></li><li><a class="hover:text-primary transition-colors" data-path="admissions-info" href="#">Faculty Directory</a></li><li><a class="hover:text-primary transition-colors" data-path="academics-overview" href="#">Research Labs</a></li><li><a class="hover:text-primary transition-colors" data-path="academics-overview" href="#">Scholarship Fund</a></li></ul></div><div><h4 class="font-label-md text-label-md uppercase tracking-wider text-on-surface font-semibold mb-4">Campus &amp; Life</h4><ul class="space-y-2 font-body-sm text-body-sm text-on-surface-variant"><li><a class="hover:text-primary transition-colors" data-path="campus-life" href="#">Residential Halls</a></li><li><a class="hover:text-primary transition-colors" data-path="campus-life" href="#">Athletic Complex</a></li><li><a class="hover:text-primary transition-colors" data-path="news-and-events" href="#">Upcoming Fixtures</a></li><li><a class="hover:text-primary transition-colors" data-path="portal-login" href="#">Student Union</a></li></ul></div><div><h4 class="font-label-md text-label-md uppercase tracking-wider text-on-surface font-semibold mb-4">Contact &amp; Accreditation</h4><p class="font-body-sm text-body-sm text-on-surface-variant mb-2">1200 Crestview Way, Highspire Campus</p><p class="font-body-sm text-body-sm text-on-surface-variant mb-4">contact@aethelgard.edu | +1 (800) 412-8820</p><span class="inline-block px-3 py-1 rounded-full bg-surface-container-high font-label-sm text-label-sm text-on-surface font-semibold">NAAC Grade A++ Accredited</span></div></div><div class="pt-8 flex flex-col md:flex-row items-center justify-between gap-4 font-body-sm text-body-sm text-on-surface-variant"><p>© 2025 Aethelgard Academy Institutional Trust. All rights reserved.</p><div class="flex items-center gap-6"><a class="hover:text-on-surface" data-path="portal-login" href="#">Privacy Policy</a><a class="hover:text-on-surface" data-path="portal-login" href="#">Terms of Service</a><a class="hover:text-on-surface" data-path="portal-login" href="#">Faculty ERP Access</a></div></div></div></footer>
+
+</body></html>
