@@ -2008,6 +2008,27 @@ export async function POST(req: NextRequest) {
           ...exam,
           marksheetBgUrl:
             exam.marksheetBgUrl !== undefined ? sanitizeSafeUrl(exam.marksheetBgUrl) : '',
+          ...(exam.marksheetTemplate
+            ? {
+                marksheetTemplate: {
+                  ...exam.marksheetTemplate,
+                  ...(exam.marksheetTemplate.pageBackgroundUrl !== undefined
+                    ? {
+                        pageBackgroundUrl: sanitizeSafeUrl(
+                          exam.marksheetTemplate.pageBackgroundUrl
+                        ),
+                      }
+                    : {}),
+                  ...(exam.marksheetTemplate.watermarkLogoUrl !== undefined
+                    ? {
+                        watermarkLogoUrl: sanitizeSafeUrl(
+                          exam.marksheetTemplate.watermarkLogoUrl
+                        ),
+                      }
+                    : {}),
+                },
+              }
+            : {}),
           signatories: Array.isArray(exam.signatories)
             ? exam.signatories.map((s) => ({
                 ...s,
@@ -2029,6 +2050,27 @@ export async function POST(req: NextRequest) {
           ...rawUpdates,
           ...(rawUpdates.marksheetBgUrl !== undefined
             ? { marksheetBgUrl: sanitizeSafeUrl(rawUpdates.marksheetBgUrl) }
+            : {}),
+          ...(rawUpdates.marksheetTemplate
+            ? {
+                marksheetTemplate: {
+                  ...rawUpdates.marksheetTemplate,
+                  ...(rawUpdates.marksheetTemplate.pageBackgroundUrl !== undefined
+                    ? {
+                        pageBackgroundUrl: sanitizeSafeUrl(
+                          rawUpdates.marksheetTemplate.pageBackgroundUrl
+                        ),
+                      }
+                    : {}),
+                  ...(rawUpdates.marksheetTemplate.watermarkLogoUrl !== undefined
+                    ? {
+                        watermarkLogoUrl: sanitizeSafeUrl(
+                          rawUpdates.marksheetTemplate.watermarkLogoUrl
+                        ),
+                      }
+                    : {}),
+                },
+              }
             : {}),
           ...(Array.isArray(rawUpdates.signatories)
             ? {

@@ -8,7 +8,9 @@ import {
   MarkEntry,
   MarksheetCustomField,
   MarksheetCustomTextBlock,
+  MarksheetFontId,
   MarksheetLabelsConfig,
+  MarksheetLabelStyle,
   MarksheetSectionId,
   MarksheetTemplate,
   Signatory,
@@ -20,6 +22,7 @@ import {
 import { compileStudentExamRecord } from '@/lib/grading-engine';
 import { generateQrDataUrl } from '@/lib/qr';
 import { downloadMarksheetAsPdf, printMarksheetDocument } from '@/lib/marksheet-pdf';
+import { MARKSHEET_FONT_OPTIONS } from '@/lib/marksheet-fonts';
 import MediaUploadInput from '@/components/admin/MediaUploadInput';
 import MarksheetDocument, {
   DEFAULT_MARKSHEET_LABELS,
@@ -33,15 +36,19 @@ import {
   CheckCircle2,
   CopyCheck,
   Download,
+  Eye,
   FileText,
   Layers,
   MousePointerClick,
   Palette,
   Plus,
   Printer,
+  RectangleHorizontal,
+  RectangleVertical,
   RotateCcw,
   Save,
   Sparkles,
+  Stamp,
   Trash2,
   Type,
   UserCheck,
@@ -119,9 +126,17 @@ export default function MarksheetDesignerPanel({
   const [bgUrl, setBgUrl] = useState(currentExam.marksheetBgUrl || '');
   const [bgPublicId, setBgPublicId] = useState(currentExam.marksheetBgPublicId || '');
   const [signatories, setSignatories] = useState<Signatory[]>(currentExam.signatories || []);
-  const [template, setTemplate] = useState<ResolvedMarksheetTemplate>(() =>
-    resolveMarksheetTemplate(currentExam.marksheetTemplate)
-  );
+  const [template, setTemplate] = useState<ResolvedMarksheetTemplate>(() => {
+    const resolved = resolveMarksheetTemplate(currentExam.marksheetTemplate);
+    if (!resolved.watermarkLogoUrl && !resolved.pageBackgroundUrl && currentExam.marksheetBgUrl) {
+      return {
+        ...resolved,
+        watermarkLogoUrl: currentExam.marksheetBgUrl,
+        watermarkLogoPublicId: currentExam.marksheetBgPublicId || '',
+      };
+    }
+    return resolved;
+  });
   const [metaMap, setMetaMap] = useState<Record<string, StudentMarksheetMeta>>(
     () => currentExam.studentMarksheetMeta || {}
   );
@@ -214,6 +229,40 @@ export default function MarksheetDesignerPanel({
     }));
   };
 
+  const updateLabelStyle = (boxKey: string, patch: Partial<MarksheetLabelStyle>) => {
+    setTemplate((prev) => ({
+      ...prev,
+      labelStyles: {
+        ...prev.labelStyles,
+        [boxKey]: {
+          ...(prev.labelStyles[boxKey] || {}),
+          ...patch,
+        },
+      },
+    }));
+  };
+
+  const restoreHiddenBox = (boxKey: string) => {
+    setTemplate((prev) => {
+      const next = { ...prev.labelStyles };
+      if (next[boxKey]) {
+        next[boxKey] = { ...next[boxKey], hidden: false };
+      }
+      return { ...prev, labelStyles: next };
+    });
+  };
+
+  const restoreAllHiddenBoxes = () => {
+    setTemplate((prev) => {
+      const next: Record<string, MarksheetLabelStyle> = {};
+      for (const [k, v] of Object.entries(prev.labelStyles || {})) {
+        next[k] = { ...v, hidden: false };
+      }
+      return { ...prev, labelStyles: next };
+    });
+    onToast('Restored all hidden marksheet text boxes.');
+  };
+
   const updateTemplateField = (patch: Partial<MarksheetTemplate>) => {
     setTemplate((prev) => ({
       ...prev,
@@ -235,6 +284,8 @@ export default function MarksheetDesignerPanel({
         borderWidthPx: 3,
         borderRadiusPx: 6,
         fontFamily: 'serif',
+        headingFont: 'playfair',
+        bodyFont: 'lora',
         sideBySideBioAndScale: true,
       }));
     } else if (preset === 'modern-editorial') {
@@ -249,6 +300,8 @@ export default function MarksheetDesignerPanel({
         borderWidthPx: 2,
         borderRadiusPx: 14,
         fontFamily: 'sans',
+        headingFont: 'jakarta',
+        bodyFont: 'manrope',
         sideBySideBioAndScale: true,
       }));
     } else {
@@ -263,6 +316,8 @@ export default function MarksheetDesignerPanel({
         borderWidthPx: 2,
         borderRadiusPx: 8,
         fontFamily: 'sans',
+        headingFont: 'dm-sans',
+        bodyFont: 'dm-sans',
         sideBySideBioAndScale: true,
       }));
     }
@@ -281,6 +336,7 @@ export default function MarksheetDesignerPanel({
   };
 
   const buildCleanTemplatePayload = (): MarksheetTemplate => ({
+    orientation: template.orientation,
     layoutPreset: template.layoutPreset,
     headerLayout: template.headerLayout,
     density: template.density,
@@ -294,6 +350,14 @@ export default function MarksheetDesignerPanel({
     borderStyle: template.borderStyle,
     accentColor: template.accentColor,
     fontFamily: template.fontFamily,
+    headingFont: template.headingFont,
+    bodyFont: template.bodyFont,
+    pageBackgroundUrl: template.pageBackgroundUrl,
+    pageBackgroundPublicId: template.pageBackgroundPublicId,
+    pageBackgroundOpacity: template.pageBackgroundOpacity,
+    watermarkLogoUrl: template.watermarkLogoUrl,
+    watermarkLogoPublicId: template.watermarkLogoPublicId,
+    watermarkScalePercent: template.watermarkScalePercent,
     watermarkOpacity: template.watermarkOpacity,
     boardTitle: template.boardTitle,
     headerSubtitle: template.headerSubtitle,
@@ -317,15 +381,18 @@ export default function MarksheetDesignerPanel({
     showAttendanceConduct: template.showAttendanceConduct,
     showQrVerification: template.showQrVerification,
     labels: template.labels,
+    labelStyles: template.labelStyles,
     customTextBlocks: template.customTextBlocks,
     customFields: template.customFields,
   });
 
   const handleSaveToCurrentExam = () => {
+    const syncedLegacyBgUrl = template.watermarkLogoUrl || bgUrl || '';
+    const syncedLegacyBgPid = template.watermarkLogoPublicId || bgPublicId || '';
     onUpdateExam(currentExam.id, {
       stationeryMode,
-      marksheetBgUrl: bgUrl,
-      marksheetBgPublicId: bgPublicId,
+      marksheetBgUrl: syncedLegacyBgUrl,
+      marksheetBgPublicId: syncedLegacyBgPid,
       signatories,
       marksheetTemplate: buildCleanTemplatePayload(),
       studentMarksheetMeta: metaMap,
@@ -335,11 +402,13 @@ export default function MarksheetDesignerPanel({
 
   const handleApplyToAllExams = () => {
     const cleanTpl = buildCleanTemplatePayload();
+    const syncedLegacyBgUrl = template.watermarkLogoUrl || bgUrl || '';
+    const syncedLegacyBgPid = template.watermarkLogoPublicId || bgPublicId || '';
     for (const ex of allExams) {
       onUpdateExam(ex.id, {
         stationeryMode,
-        marksheetBgUrl: bgUrl,
-        marksheetBgPublicId: bgPublicId,
+        marksheetBgUrl: syncedLegacyBgUrl,
+        marksheetBgPublicId: syncedLegacyBgPid,
         signatories,
         marksheetTemplate: cleanTpl,
       });
@@ -412,6 +481,18 @@ export default function MarksheetDesignerPanel({
     }));
   };
 
+  const handleUpdateCustomBlockStyle = (
+    blockId: string,
+    patch: Partial<MarksheetCustomTextBlock>
+  ) => {
+    setTemplate((prev) => ({
+      ...prev,
+      customTextBlocks: prev.customTextBlocks.map((b) =>
+        b.id === blockId ? { ...b, ...patch } : b
+      ),
+    }));
+  };
+
   const handleRemoveCustomBlock = (blockId: string) => {
     setTemplate((prev) => ({
       ...prev,
@@ -425,7 +506,8 @@ export default function MarksheetDesignerPanel({
     try {
       await downloadMarksheetAsPdf(
         studioSheetRef.current,
-        `Marksheet-${activeResult.studentName}-Roll-${activeResult.rollNumber}`
+        `Marksheet-${activeResult.studentName}-Roll-${activeResult.rollNumber}`,
+        template.orientation
       );
     } finally {
       setIsDownloadingPdf(false);
@@ -440,6 +522,9 @@ export default function MarksheetDesignerPanel({
   };
 
   const perStudentCustomFields = template.customFields.filter((f) => f.scope === 'per-student');
+  const hiddenBoxKeys = Object.entries(template.labelStyles || {})
+    .filter(([, style]) => style?.hidden)
+    .map(([key]) => key);
 
   return (
     <div className="grid grid-cols-1 xl:grid-cols-12 gap-6 items-start marksheet-print-host">
@@ -490,9 +575,56 @@ export default function MarksheetDesignerPanel({
           })}
         </div>
 
-        {/* SECTION 1: DESIGN, PRESETS & GEOMETRY */}
+        {/* SECTION 1: DESIGN, ORIENTATION, TYPOGRAPHY & IMAGE LAYERS */}
         {studioSection === 'design' && (
-          <div className="space-y-4 text-xs">
+          <div className="space-y-4 text-xs max-h-[620px] overflow-y-auto pr-1">
+            {/* Orientation Switcher */}
+            <div className="space-y-1.5">
+              <label className="block font-bold text-on-surface-variant uppercase text-[10px] tracking-wider">
+                A4 Page Orientation
+              </label>
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  onClick={() =>
+                    setTemplate((prev) => ({ ...prev, orientation: 'portrait' }))
+                  }
+                  className={`p-2.5 rounded-xl border text-left cursor-pointer transition-colors flex items-center gap-2.5 ${
+                    template.orientation === 'portrait'
+                      ? 'border-primary-container bg-primary-fixed/25 text-primary-container'
+                      : 'border-outline-variant/30 bg-surface-container-low text-on-surface'
+                  }`}
+                >
+                  <RectangleVertical className="w-4 h-4 shrink-0" />
+                  <div>
+                    <div className="font-bold">Portrait A4</div>
+                    <div className="text-[10px] opacity-80">210 × 297 mm Classic</div>
+                  </div>
+                </button>
+                <button
+                  type="button"
+                  onClick={() =>
+                    setTemplate((prev) => ({
+                      ...prev,
+                      orientation: 'landscape',
+                      density: 'compact',
+                    }))
+                  }
+                  className={`p-2.5 rounded-xl border text-left cursor-pointer transition-colors flex items-center gap-2.5 ${
+                    template.orientation === 'landscape'
+                      ? 'border-primary-container bg-primary-fixed/25 text-primary-container'
+                      : 'border-outline-variant/30 bg-surface-container-low text-on-surface'
+                  }`}
+                >
+                  <RectangleHorizontal className="w-4 h-4 shrink-0" />
+                  <div>
+                    <div className="font-bold">Landscape A4</div>
+                    <div className="text-[10px] opacity-80">297 × 210 mm 2-Column</div>
+                  </div>
+                </button>
+              </div>
+            </div>
+
             {/* Quick Presets */}
             <div className="space-y-1.5">
               <label className="block font-bold text-on-surface-variant uppercase text-[10px] tracking-wider">
@@ -607,45 +739,74 @@ export default function MarksheetDesignerPanel({
               </div>
             </div>
 
+            {/* Dual Font Pairing */}
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <label className="block font-semibold text-on-surface-variant mb-1">
-                  Border Frame Style
+                  Heading / Display Font
                 </label>
                 <select
-                  value={template.borderStyle}
+                  value={template.headingFont}
                   onChange={(e) =>
                     setTemplate((prev) => ({
                       ...prev,
-                      borderStyle: e.target.value as ResolvedMarksheetTemplate['borderStyle'],
+                      headingFont: e.target.value as MarksheetFontId,
                     }))
                   }
-                  className="w-full px-3 py-2 rounded-xl bg-surface-container-low border border-outline-variant/30 font-semibold"
+                  className="w-full px-2.5 py-2 rounded-xl bg-surface-container-low border border-outline-variant/30 font-semibold"
                 >
-                  <option value="classic-double">Classic Double Border</option>
-                  <option value="modern-clean">Modern Clean Rounded</option>
-                  <option value="official-seal">Official Certificate Box</option>
-                  <option value="none">Minimal / Borderless</option>
+                  {MARKSHEET_FONT_OPTIONS.map((font) => (
+                    <option key={font.id} value={font.id}>
+                      {font.label}
+                    </option>
+                  ))}
                 </select>
               </div>
               <div>
                 <label className="block font-semibold text-on-surface-variant mb-1">
-                  Typography Font
+                  Body &amp; Table Font
                 </label>
                 <select
-                  value={template.fontFamily}
+                  value={template.bodyFont}
                   onChange={(e) =>
                     setTemplate((prev) => ({
                       ...prev,
-                      fontFamily: e.target.value as 'sans' | 'serif',
+                      bodyFont: e.target.value as MarksheetFontId,
                     }))
                   }
-                  className="w-full px-3 py-2 rounded-xl bg-surface-container-low border border-outline-variant/30 font-semibold"
+                  className="w-full px-2.5 py-2 rounded-xl bg-surface-container-low border border-outline-variant/30 font-semibold"
                 >
-                  <option value="sans">Modern Sans (Clean)</option>
-                  <option value="serif">Academic Serif (Formal)</option>
+                  {MARKSHEET_FONT_OPTIONS.map((font) => (
+                    <option key={font.id} value={font.id}>
+                      {font.label}
+                    </option>
+                  ))}
                 </select>
               </div>
+            </div>
+
+            <div>
+              <label className="block font-semibold text-on-surface-variant mb-1">
+                Decorative Border Frame
+              </label>
+              <select
+                value={template.borderStyle}
+                onChange={(e) =>
+                  setTemplate((prev) => ({
+                    ...prev,
+                    borderStyle: e.target.value as ResolvedMarksheetTemplate['borderStyle'],
+                  }))
+                }
+                className="w-full px-3 py-2 rounded-xl bg-surface-container-low border border-outline-variant/30 font-semibold"
+              >
+                <option value="classic-double">Classic Double Border</option>
+                <option value="modern-clean">Modern Clean Rounded</option>
+                <option value="official-seal">Official Certificate Box</option>
+                <option value="ornate-guilloche">Ornate Guilloché Crest Frame</option>
+                <option value="diploma-crest">Royal Diploma Pinstripe</option>
+                <option value="corner-brackets">Architectural Corner Brackets</option>
+                <option value="none">Borderless / Minimal</option>
+              </select>
             </div>
 
             {/* Sliders for Geometry */}
@@ -755,39 +916,138 @@ export default function MarksheetDesignerPanel({
               </div>
             </div>
 
-            <div className="p-3.5 rounded-xl bg-surface-container-low/70 border border-outline-variant/25 space-y-3">
+            {/* Layer 1: Full-Page Sheet Background */}
+            <div className="p-3.5 rounded-xl bg-surface-container-low/70 border border-outline-variant/25 space-y-2.5">
               <MediaUploadInput
-                label="Watermark / Crest Background Image"
-                value={bgUrl}
-                onChange={setBgUrl}
+                label="Full-Page Sheet Background (Edge-to-Edge)"
+                value={template.pageBackgroundUrl}
+                onChange={(url) =>
+                  setTemplate((prev) => ({ ...prev, pageBackgroundUrl: url }))
+                }
+                onChangeMedia={({ url, publicId }) =>
+                  setTemplate((prev) => ({
+                    ...prev,
+                    pageBackgroundUrl: url,
+                    pageBackgroundPublicId:
+                      publicId !== undefined ? publicId : prev.pageBackgroundPublicId,
+                  }))
+                }
+                folder="erp/exams"
+                previewShape="wide"
+                buttonLabel="Upload Background"
+                helperText="Full A4 stationery texture, border frame image, or parchment backdrop."
+              />
+              <div>
+                <div className="flex items-center justify-between text-[11px] font-semibold text-on-surface-variant mb-1">
+                  <span>Background Opacity</span>
+                  <span className="font-mono">
+                    {Math.round(template.pageBackgroundOpacity * 100)}%
+                  </span>
+                </div>
+                <input
+                  type="range"
+                  min={0.05}
+                  max={1}
+                  step={0.05}
+                  value={template.pageBackgroundOpacity}
+                  onChange={(e) =>
+                    setTemplate((prev) => ({
+                      ...prev,
+                      pageBackgroundOpacity: Number(e.target.value),
+                    }))
+                  }
+                  className="w-full accent-primary-container cursor-pointer"
+                />
+              </div>
+            </div>
+
+            {/* Layer 2: Independent Centered Watermark Crest Logo */}
+            <div className="p-3.5 rounded-xl bg-surface-container-low/70 border border-outline-variant/25 space-y-3">
+              <div className="flex items-center justify-between gap-2">
+                <span className="font-bold text-on-surface flex items-center gap-1.5">
+                  <Stamp className="w-3.5 h-3.5 text-primary-container" />
+                  <span>Centered Watermark Crest Logo</span>
+                </span>
+                {cmsConfig.crestUrl && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setTemplate((prev) => ({
+                        ...prev,
+                        watermarkLogoUrl: cmsConfig.crestUrl || '',
+                        watermarkLogoPublicId: '',
+                      }));
+                      setBgUrl(cmsConfig.crestUrl || '');
+                    }}
+                    className="px-2 py-1 rounded-lg bg-white border border-outline-variant/40 text-[10px] font-bold text-primary-container hover:bg-primary-fixed/25 cursor-pointer"
+                  >
+                    Copy School Crest
+                  </button>
+                )}
+              </div>
+              <MediaUploadInput
+                label="Watermark Logo Image"
+                value={template.watermarkLogoUrl}
+                onChange={(url) => {
+                  setTemplate((prev) => ({ ...prev, watermarkLogoUrl: url }));
+                  setBgUrl(url);
+                }}
                 onChangeMedia={({ url, publicId }) => {
+                  setTemplate((prev) => ({
+                    ...prev,
+                    watermarkLogoUrl: url,
+                    watermarkLogoPublicId:
+                      publicId !== undefined ? publicId : prev.watermarkLogoPublicId,
+                  }));
                   setBgUrl(url);
                   if (publicId !== undefined) setBgPublicId(publicId);
                 }}
                 folder="erp/exams"
                 previewShape="square"
                 buttonLabel="Upload Watermark"
-                helperText="Optional background watermark image rendered behind the transcript."
+                helperText="Centered transparent crest emblem rendered behind transcript marks."
               />
-              <div>
-                <div className="flex items-center justify-between text-[11px] font-semibold text-on-surface-variant mb-1">
-                  <span>Watermark Opacity</span>
-                  <span className="font-mono">{Math.round(template.watermarkOpacity * 100)}%</span>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <div className="flex items-center justify-between text-[11px] font-semibold text-on-surface-variant mb-1">
+                    <span>Logo Scale</span>
+                    <span className="font-mono">{template.watermarkScalePercent}%</span>
+                  </div>
+                  <input
+                    type="range"
+                    min={20}
+                    max={120}
+                    step={5}
+                    value={template.watermarkScalePercent}
+                    onChange={(e) =>
+                      setTemplate((prev) => ({
+                        ...prev,
+                        watermarkScalePercent: Number(e.target.value),
+                      }))
+                    }
+                    className="w-full accent-primary-container cursor-pointer"
+                  />
                 </div>
-                <input
-                  type="range"
-                  min={0.04}
-                  max={0.35}
-                  step={0.01}
-                  value={template.watermarkOpacity}
-                  onChange={(e) =>
-                    setTemplate((prev) => ({
-                      ...prev,
-                      watermarkOpacity: Number(e.target.value),
-                    }))
-                  }
-                  className="w-full accent-primary-container cursor-pointer"
-                />
+                <div>
+                  <div className="flex items-center justify-between text-[11px] font-semibold text-on-surface-variant mb-1">
+                    <span>Watermark Opacity</span>
+                    <span className="font-mono">{Math.round(template.watermarkOpacity * 100)}%</span>
+                  </div>
+                  <input
+                    type="range"
+                    min={0.04}
+                    max={0.35}
+                    step={0.01}
+                    value={template.watermarkOpacity}
+                    onChange={(e) =>
+                      setTemplate((prev) => ({
+                        ...prev,
+                        watermarkOpacity: Number(e.target.value),
+                      }))
+                    }
+                    className="w-full accent-primary-container cursor-pointer"
+                  />
+                </div>
               </div>
             </div>
           </div>
@@ -798,7 +1058,7 @@ export default function MarksheetDesignerPanel({
           <div className="space-y-4 text-xs max-h-[540px] overflow-y-auto pr-1">
             <div className="flex items-center justify-between gap-2 p-2.5 rounded-xl bg-amber-50 border border-amber-200 text-amber-900">
               <span className="text-[11px] font-medium">
-                Tip: Turn on <strong>Click-to-Edit</strong> above the preview to click and rewrite any text right on the marksheet.
+                Tip: Turn on <strong>Click-to-Edit</strong> above the preview to click any text box for inline typing, font, size, or hiding.
               </span>
               <button
                 type="button"
@@ -815,6 +1075,36 @@ export default function MarksheetDesignerPanel({
                 <span>Reset</span>
               </button>
             </div>
+
+            {hiddenBoxKeys.length > 0 && (
+              <div className="p-2.5 rounded-xl bg-slate-100 border border-slate-300 space-y-2">
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-slate-700">
+                    Hidden Elements ({hiddenBoxKeys.length})
+                  </span>
+                  <button
+                    type="button"
+                    onClick={restoreAllHiddenBoxes}
+                    className="text-[10px] font-bold text-primary-container hover:underline cursor-pointer"
+                  >
+                    Restore All
+                  </button>
+                </div>
+                <div className="flex flex-wrap gap-1.5">
+                  {hiddenBoxKeys.map((key) => (
+                    <button
+                      key={key}
+                      type="button"
+                      onClick={() => restoreHiddenBox(key)}
+                      className="px-2 py-1 rounded-lg bg-white border border-slate-300 text-[10px] font-semibold text-slate-800 hover:border-primary-container inline-flex items-center gap-1 cursor-pointer"
+                    >
+                      <Eye className="w-3 h-3 text-primary-container" />
+                      <span>{key.replace(/Override$|Label$|Title$/, '')}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
 
             {/* Header Overrides */}
             <div className="space-y-2">
@@ -1551,6 +1841,42 @@ export default function MarksheetDesignerPanel({
           </div>
 
           <div className="flex flex-wrap items-center gap-2 shrink-0">
+            {/* Compact Instant Orientation Toggle */}
+            <div className="inline-flex rounded-xl bg-surface-container-low border border-outline-variant/40 p-0.5 text-[11px]">
+              <button
+                type="button"
+                onClick={() => setTemplate((prev) => ({ ...prev, orientation: 'portrait' }))}
+                className={`inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg font-bold cursor-pointer transition-colors ${
+                  template.orientation === 'portrait'
+                    ? 'bg-primary-container text-on-primary shadow-2xs'
+                    : 'text-on-surface-variant hover:text-on-surface'
+                }`}
+                title="Portrait A4 (210x297mm)"
+              >
+                <RectangleVertical className="w-3.5 h-3.5" />
+                <span>Portrait</span>
+              </button>
+              <button
+                type="button"
+                onClick={() =>
+                  setTemplate((prev) => ({
+                    ...prev,
+                    orientation: 'landscape',
+                    density: 'compact',
+                  }))
+                }
+                className={`inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg font-bold cursor-pointer transition-colors ${
+                  template.orientation === 'landscape'
+                    ? 'bg-primary-container text-on-primary shadow-2xs'
+                    : 'text-on-surface-variant hover:text-on-surface'
+                }`}
+                title="Smart 2-Column Landscape A4 (297x210mm)"
+              >
+                <RectangleHorizontal className="w-3.5 h-3.5" />
+                <span>Landscape</span>
+              </button>
+            </div>
+
             <button
               type="button"
               onClick={() => setIsInlineEditMode((prev) => !prev)}
@@ -1583,6 +1909,22 @@ export default function MarksheetDesignerPanel({
             </button>
           </div>
         </div>
+
+        {hiddenBoxKeys.length > 0 && (
+          <div className="rounded-xl bg-amber-50/80 border border-amber-200 px-3.5 py-2 flex flex-wrap items-center justify-between gap-2 text-xs no-print">
+            <span className="font-semibold text-amber-950">
+              {hiddenBoxKeys.length} text box{hiddenBoxKeys.length > 1 ? 'es' : ''} hidden on canvas
+            </span>
+            <button
+              type="button"
+              onClick={restoreAllHiddenBoxes}
+              className="px-2.5 py-1 rounded-lg bg-white border border-amber-300 text-[11px] font-bold text-amber-950 hover:bg-amber-100 inline-flex items-center gap-1 cursor-pointer"
+            >
+              <Eye className="w-3.5 h-3.5" />
+              <span>Restore All Hidden Boxes</span>
+            </button>
+          </div>
+        )}
 
         {/* Per-Student Attendance, Conduct, Remark & Custom Field Values */}
         {activeStudent && (
@@ -1723,8 +2065,11 @@ export default function MarksheetDesignerPanel({
               signatoriesOverride={signatories}
               isInlineEditMode={isInlineEditMode}
               onUpdateLabel={updateLabel}
+              onUpdateLabelStyle={updateLabelStyle}
               onUpdateTemplateField={updateTemplateField}
               onUpdateCustomBlock={handleUpdateCustomBlock}
+              onUpdateCustomBlockStyle={handleUpdateCustomBlockStyle}
+              onRemoveCustomBlock={handleRemoveCustomBlock}
             />
           </div>
         ) : (

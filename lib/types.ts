@@ -567,6 +567,28 @@ export interface MarksheetCustomField {
   defaultValue?: string;
 }
 
+export type MarksheetFontId =
+  | 'sans'
+  | 'serif'
+  | 'playfair'
+  | 'cormorant'
+  | 'lora'
+  | 'crimson'
+  | 'cinzel'
+  | 'jakarta'
+  | 'manrope'
+  | 'dm-sans'
+  | 'outfit';
+
+export interface MarksheetLabelStyle {
+  fontSizePx?: number;
+  fontFamily?: MarksheetFontId;
+  hidden?: boolean;
+  bold?: boolean;
+  italic?: boolean;
+  align?: 'left' | 'center' | 'right';
+}
+
 export interface MarksheetCustomTextBlock {
   id: string;
   title?: string;
@@ -574,6 +596,7 @@ export interface MarksheetCustomTextBlock {
   placement: 'below-header' | 'above-table' | 'below-summary' | 'above-signatures';
   align?: 'left' | 'center' | 'right';
   fontSizePx?: number;
+  fontFamily?: MarksheetFontId;
   bold?: boolean;
   italic?: boolean;
   bordered?: boolean;
@@ -630,6 +653,7 @@ export interface MarksheetLabelsConfig {
 }
 
 export interface MarksheetTemplate {
+  orientation?: 'portrait' | 'landscape';
   layoutPreset?: 'nctb-classic' | 'modern-editorial' | 'compact-fit';
   headerLayout?: 'centered' | 'left-crest' | 'split-banner';
   density?: 'compact' | 'balanced' | 'spacious';
@@ -640,9 +664,24 @@ export interface MarksheetTemplate {
   sideBySideBioAndScale?: boolean;
   autoFitSinglePage?: boolean;
   sectionOrder?: MarksheetSectionId[];
-  borderStyle?: 'classic-double' | 'modern-clean' | 'official-seal' | 'none';
+  borderStyle?:
+    | 'classic-double'
+    | 'modern-clean'
+    | 'official-seal'
+    | 'ornate-guilloche'
+    | 'diploma-crest'
+    | 'corner-brackets'
+    | 'none';
   accentColor?: string;
   fontFamily?: 'sans' | 'serif';
+  headingFont?: MarksheetFontId;
+  bodyFont?: MarksheetFontId;
+  pageBackgroundUrl?: string;
+  pageBackgroundPublicId?: string;
+  pageBackgroundOpacity?: number;
+  watermarkLogoUrl?: string;
+  watermarkLogoPublicId?: string;
+  watermarkScalePercent?: number;
   watermarkOpacity?: number;
   boardTitle?: string;
   headerSubtitle?: string;
@@ -666,6 +705,7 @@ export interface MarksheetTemplate {
   showAttendanceConduct?: boolean;
   showQrVerification?: boolean;
   labels?: Partial<MarksheetLabelsConfig>;
+  labelStyles?: Record<string, MarksheetLabelStyle>;
   customTextBlocks?: MarksheetCustomTextBlock[];
   customFields?: MarksheetCustomField[];
 }

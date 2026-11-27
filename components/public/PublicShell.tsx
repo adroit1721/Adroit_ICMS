@@ -866,7 +866,13 @@ export default function PublicShell({ children, activePath = '/' }: PublicShellP
         </div>
 
         {/* MAIN CONTENT VIEWPORT */}
-        <main className="w-full flex-1 bg-transparent">{children}</main>
+        <main
+          className={`w-full flex-1 bg-transparent ${
+            showResultPortal && activeResult ? 'no-print' : ''
+          }`}
+        >
+          {children}
+        </main>
 
         {/* DYNAMIC CMS FOOTER (No exposed /custom/admin links) */}
         {(() => {
@@ -978,7 +984,11 @@ export default function PublicShell({ children, activePath = '/' }: PublicShellP
           <div className="fixed inset-0 z-50 bg-slate-950/75 backdrop-blur-md flex items-start sm:items-center justify-center p-2 sm:p-4 marksheet-print-host">
             <div
               className={`relative w-full ${
-                activeResult ? 'max-w-4xl' : 'max-w-xl'
+                activeResult
+                  ? (activeExam || publishedExam)?.marksheetTemplate?.orientation === 'landscape'
+                    ? 'max-w-[1200px]'
+                    : 'max-w-4xl'
+                  : 'max-w-xl'
               } max-h-[94vh] flex flex-col bg-white rounded-2xl sm:rounded-3xl shadow-2xl border border-slate-200 overflow-hidden`}
             >
               {/* Sticky Modal Header */}

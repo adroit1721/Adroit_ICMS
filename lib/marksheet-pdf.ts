@@ -3,8 +3,23 @@
 import { toPng } from 'html-to-image';
 import { jsPDF } from 'jspdf';
 
-const A4_WIDTH_PX = 794; // 210mm at 96dpi
-const A4_HEIGHT_PX = 1123; // 297mm at 96dpi
+const A4_PORTRAIT_W_PX = 794; // 210mm at 96dpi
+const A4_PORTRAIT_H_PX = 1123; // 297mm at 96dpi
+const A4_LANDSCAPE_W_PX = 1123; // 297mm at 96dpi
+const A4_LANDSCAPE_H_PX = 794; // 210mm at 96dpi
+
+const DYNAMIC_PAGE_STYLE_ID = 'marksheet-dynamic-page-style';
+
+function resolveSheetOrientation(el?: HTMLElement | null): 'portrait' | 'landscape' {
+  if (!el) return 'portrait';
+  if (
+    el.getAttribute('data-orientation') === 'landscape' ||
+    el.classList.contains('a4-landscape')
+  ) {
+    return 'landscape';
+  }
+  return 'portrait';
+}
 
 async function inlineExternalImages(root: HTMLElement): Promise<void> {
   const imgs = Array.from(root.querySelectorAll('img'));
@@ -68,45 +83,56 @@ export function sanitizeMarksheetFilename(baseName: string): string {
 }
 
 /**
- * Generates an exact single-page A4 Portrait PDF (210mm x 297mm) from a rendered MarksheetDocument node.
- * Automatically clones into an unclipped off-screen 794px x 1123px stage and scales tall content cleanly.
+ * Generates an exact single-page A4 Portrait (210x297mm) or Landscape (297x210mm) PDF
+ * from a rendered MarksheetDocument node using compact rhythm + inverse-width compensation
+ * so even 12+ subject transcripts fit edge-to-edge on one crisp A4 sheet.
  */
 export async function downloadMarksheetAsPdf(
   sourceEl: HTMLElement,
-  filenameBase: string
+  filenameBase: string,
+  orientationOverride?: 'portrait' | 'landscape'
 ): Promise<void> {
   if (typeof window === 'undefined' || !sourceEl) return;
+
+  const orientation = orientationOverride || resolveSheetOrientation(sourceEl);
+  const targetW = orientation === 'landscape' ? A4_LANDSCAPE_W_PX : A4_PORTRAIT_W_PX;
+  const targetH = orientation === 'landscape' ? A4_LANDSCAPE_H_PX : A4_PORTRAIT_H_PX;
+  const mmW = orientation === 'landscape' ? 297 : 210;
+  const mmH = orientation === 'landscape' ? 210 : 297;
+  const autoFit = sourceEl.getAttribute('data-auto-fit') !== 'false';
 
   const host = document.createElement('div');
   host.setAttribute('aria-hidden', 'true');
   host.style.position = 'fixed';
-  host.style.left = '-10000px';
+  host.style.left = '-12000px';
   host.style.top = '0';
-  host.style.width = `${A4_WIDTH_PX}px`;
-  host.style.height = `${A4_HEIGHT_PX}px`;
+  host.style.width = `${targetW}px`;
+  host.style.height = `${targetH}px`;
   host.style.overflow = 'hidden';
   host.style.backgroundColor = '#ffffff';
   host.style.zIndex = '-1';
   host.style.pointerEvents = 'none';
 
   const stage = document.createElement('div');
-  stage.style.width = `${A4_WIDTH_PX}px`;
-  stage.style.minHeight = `${A4_HEIGHT_PX}px`;
+  stage.style.width = `${targetW}px`;
+  stage.style.height = `${targetH}px`;
   stage.style.backgroundColor = '#ffffff';
   stage.style.display = 'flex';
   stage.style.flexDirection = 'column';
-  stage.style.alignItems = 'center';
+  stage.style.alignItems = 'flex-start';
   stage.style.justifyContent = 'flex-start';
+  stage.style.overflow = 'hidden';
 
   const clone = sourceEl.cloneNode(true) as HTMLElement;
-  // Strip screen-only modal card shadows, rounding, and editor UI
-  clone.style.width = `${A4_WIDTH_PX}px`;
-  clone.style.maxWidth = `${A4_WIDTH_PX}px`;
+  clone.style.width = `${targetW}px`;
+  clone.style.maxWidth = `${targetW}px`;
+  clone.style.minHeight = `${targetH}px`;
   clone.style.margin = '0';
   clone.style.boxShadow = 'none';
   clone.style.borderRadius = '0';
   clone.style.border = 'none';
   clone.style.transform = 'none';
+  clone.style.zoom = '1';
 
   clone.querySelectorAll('.no-print, .studio-edit-indicator').forEach((el) => el.remove());
 
@@ -120,33 +146,55 @@ export async function downloadMarksheetAsPdf(
       await document.fonts.ready;
     }
 
-    // Measure actual unscaled height and proportionally fit onto 1 A4 sheet if tall (e.g. 13+ subjects)
-    const measuredHeight = clone.scrollHeight;
-    if (measuredHeight > A4_HEIGHT_PX) {
-      const fitScale = Math.max(0.68, (A4_HEIGHT_PX - 12) / measuredHeight);
-      clone.style.transformOrigin = 'top center';
-      clone.style.transform = `scale(${fitScale.toFixed(4)})`;
-    } else if (measuredHeight < A4_HEIGHT_PX) {
-      clone.style.minHeight = `${A4_HEIGHT_PX}px`;
+    await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+
+    // Reset minHeight briefly to measure true natural content height
+    clone.style.minHeight = '0px';
+    await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+    let measuredHeight = clone.scrollHeight;
+
+    if (autoFit && measuredHeight > targetH - 4) {
+      // Pass 1: tighten vertical table/section rhythm
+      clone.setAttribute('data-compact-fit', 'true');
+      await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+      measuredHeight = clone.scrollHeight;
+
+      if (measuredHeight > targetH - 4) {
+        // Pass 2: inverse-width stage compensation so scale fits edge-to-edge across 100% width
+        const initialScale = Math.max(0.58, (targetH - 6) / measuredHeight);
+        clone.style.width = `${(targetW / initialScale).toFixed(2)}px`;
+        clone.style.maxWidth = `${(targetW / initialScale).toFixed(2)}px`;
+        await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+
+        const remeasuredHeight = clone.scrollHeight;
+        const finalScale = Math.min(1, Math.max(0.58, (targetH - 6) / remeasuredHeight));
+        clone.style.width = `${(targetW / finalScale).toFixed(2)}px`;
+        clone.style.maxWidth = `${(targetW / finalScale).toFixed(2)}px`;
+        clone.style.minHeight = `${Math.floor(targetH / finalScale)}px`;
+        clone.style.transformOrigin = 'top left';
+        clone.style.transform = `scale(${finalScale.toFixed(4)})`;
+      } else {
+        clone.style.minHeight = `${targetH}px`;
+      }
+    } else {
+      clone.style.minHeight = `${targetH}px`;
     }
 
-    // Allow layout flush
     await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
 
     let dataUrl: string;
     try {
       dataUrl = await toPng(stage, {
-        width: A4_WIDTH_PX,
-        height: A4_HEIGHT_PX,
+        width: targetW,
+        height: targetH,
         pixelRatio: 2.5,
         backgroundColor: '#ffffff',
         cacheBust: true,
       });
     } catch {
-      // Fallback if external cross-origin fonts/images restrict canvas read
       dataUrl = await toPng(stage, {
-        width: A4_WIDTH_PX,
-        height: A4_HEIGHT_PX,
+        width: targetW,
+        height: targetH,
         pixelRatio: 2,
         backgroundColor: '#ffffff',
         skipFonts: true,
@@ -163,12 +211,12 @@ export async function downloadMarksheetAsPdf(
     }
 
     const pdf = new jsPDF({
-      orientation: 'portrait',
+      orientation,
       unit: 'mm',
       format: 'a4',
       compress: true,
     });
-    pdf.addImage(dataUrl, 'PNG', 0, 0, 210, 297, undefined, 'FAST');
+    pdf.addImage(dataUrl, 'PNG', 0, 0, mmW, mmH, undefined, 'FAST');
     pdf.save(sanitizeMarksheetFilename(filenameBase));
   } finally {
     if (host.parentNode) {
@@ -177,8 +225,114 @@ export async function downloadMarksheetAsPdf(
   }
 }
 
+export function calibrateMarksheetForPrint(targetSheet?: HTMLElement | null): void {
+  if (typeof window === 'undefined') return;
+  const sheet =
+    targetSheet || document.querySelector<HTMLElement>('.a4-marksheet-sheet');
+  if (!sheet) return;
+
+  const orientation = resolveSheetOrientation(sheet);
+  const targetW = orientation === 'landscape' ? A4_LANDSCAPE_W_PX : A4_PORTRAIT_W_PX;
+  const targetH = orientation === 'landscape' ? A4_LANDSCAPE_H_PX : A4_PORTRAIT_H_PX;
+  const autoFit = sheet.getAttribute('data-auto-fit') !== 'false';
+
+  // Inject dynamic @page orientation rule so system print preview selects Portrait/Landscape automatically
+  let styleEl = document.getElementById(DYNAMIC_PAGE_STYLE_ID) as HTMLStyleElement | null;
+  if (!styleEl) {
+    styleEl = document.createElement('style');
+    styleEl.id = DYNAMIC_PAGE_STYLE_ID;
+    document.head.appendChild(styleEl);
+  }
+  styleEl.textContent = `@media print { @page { size: A4 ${orientation}; margin: 0mm; } }`;
+
+  // Temporarily clear previous calibration to measure cleanly
+  sheet.removeAttribute('data-compact-fit');
+  sheet.style.removeProperty('--ms-print-zoom');
+  sheet.style.removeProperty('--ms-print-width');
+  sheet.style.removeProperty('--ms-print-min-height');
+
+  // Measure natural height at exact A4 target width using a quick inline check
+  const prevWidth = sheet.style.width;
+  const prevMaxWidth = sheet.style.maxWidth;
+  const prevMinHeight = sheet.style.minHeight;
+  sheet.style.width = `${targetW}px`;
+  sheet.style.maxWidth = `${targetW}px`;
+  sheet.style.minHeight = '0px';
+
+  let naturalHeight = sheet.scrollHeight;
+
+  if (autoFit && naturalHeight > targetH - 6) {
+    sheet.setAttribute('data-compact-fit', 'true');
+    naturalHeight = sheet.scrollHeight;
+
+    if (naturalHeight > targetH - 6) {
+      const initialZoom = Math.max(0.58, (targetH - 10) / naturalHeight);
+      const widenedPx = targetW / initialZoom;
+      sheet.style.width = `${widenedPx.toFixed(2)}px`;
+      sheet.style.maxWidth = `${widenedPx.toFixed(2)}px`;
+
+      const remeasuredHeight = sheet.scrollHeight;
+      const finalZoom = Math.min(1, Math.max(0.58, (targetH - 10) / remeasuredHeight));
+      const finalWidthPx = targetW / finalZoom;
+      const finalMinHeightPx = Math.floor((targetH - 6) / finalZoom);
+
+      sheet.style.setProperty('--ms-print-zoom', finalZoom.toFixed(4));
+      sheet.style.setProperty('--ms-print-width', `${finalWidthPx.toFixed(2)}px`);
+      sheet.style.setProperty('--ms-print-min-height', `${finalMinHeightPx}px`);
+    } else {
+      sheet.style.setProperty('--ms-print-zoom', '1');
+      sheet.style.setProperty('--ms-print-width', `${targetW}px`);
+      sheet.style.setProperty('--ms-print-min-height', `${targetH - 6}px`);
+    }
+  } else {
+    sheet.style.setProperty('--ms-print-zoom', '1');
+    sheet.style.setProperty('--ms-print-width', `${targetW}px`);
+    sheet.style.setProperty('--ms-print-min-height', `${targetH - 6}px`);
+  }
+
+  // Restore on-screen styles immediately (print styles only read CSS custom props inside @media print)
+  sheet.style.width = prevWidth;
+  sheet.style.maxWidth = prevMaxWidth;
+  sheet.style.minHeight = prevMinHeight;
+}
+
+export function cleanupMarksheetPrintCalibration(): void {
+  if (typeof window === 'undefined') return;
+  document.documentElement.classList.remove('printing-marksheet');
+  const styleEl = document.getElementById(DYNAMIC_PAGE_STYLE_ID);
+  if (styleEl && styleEl.parentNode) {
+    styleEl.parentNode.removeChild(styleEl);
+  }
+  document.querySelectorAll<HTMLElement>('.a4-marksheet-sheet').forEach((sheet) => {
+    sheet.removeAttribute('data-compact-fit');
+    sheet.style.removeProperty('--ms-print-zoom');
+    sheet.style.removeProperty('--ms-print-width');
+    sheet.style.removeProperty('--ms-print-min-height');
+  });
+}
+
+let globalCalibratorRegistered = false;
+
+export function registerGlobalMarksheetPrintCalibrator(): void {
+  if (typeof window === 'undefined' || globalCalibratorRegistered) return;
+  globalCalibratorRegistered = true;
+
+  window.addEventListener('beforeprint', () => {
+    const activeSheet = document.querySelector<HTMLElement>('.a4-marksheet-sheet');
+    if (activeSheet) {
+      document.documentElement.classList.add('printing-marksheet');
+      calibrateMarksheetForPrint(activeSheet);
+    }
+  });
+
+  window.addEventListener('afterprint', () => {
+    cleanupMarksheetPrintCalibration();
+  });
+}
+
 /**
- * Triggers clean single-page vector browser printing with isolated modal overrides and PDF filename title.
+ * Triggers clean single-page vector browser printing with isolated modal overrides,
+ * orientation-matched @page geometry, single-page zoom calibration, and PDF filename title.
  */
 export function printMarksheetDocument(documentTitle?: string): void {
   if (typeof window === 'undefined') return;
@@ -188,9 +342,10 @@ export function printMarksheetDocument(documentTitle?: string): void {
     document.title = documentTitle;
   }
   root.classList.add('printing-marksheet');
+  calibrateMarksheetForPrint();
 
   const cleanup = () => {
-    root.classList.remove('printing-marksheet');
+    cleanupMarksheetPrintCalibration();
     document.title = prevTitle;
     window.removeEventListener('afterprint', cleanup);
   };
@@ -198,6 +353,6 @@ export function printMarksheetDocument(documentTitle?: string): void {
 
   requestAnimationFrame(() => {
     window.print();
-    setTimeout(cleanup, 1200);
+    setTimeout(cleanup, 1500);
   });
 }

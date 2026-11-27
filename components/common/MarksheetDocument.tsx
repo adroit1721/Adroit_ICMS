@@ -1,20 +1,42 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
   CMSConfig,
   Exam,
   ExamResultRecord,
   MarksheetCustomTextBlock,
+  MarksheetFontId,
   MarksheetLabelsConfig,
+  MarksheetLabelStyle,
   MarksheetSectionId,
   MarksheetTemplate,
   Signatory,
   Student,
   StudentMarksheetMeta,
 } from '@/lib/types';
-import { Award, CheckCircle2, QrCode, XCircle } from 'lucide-react';
+import {
+  MARKSHEET_FONT_OPTIONS,
+  resolveMarksheetFontCss,
+} from '@/lib/marksheet-fonts';
+import { registerGlobalMarksheetPrintCalibrator } from '@/lib/marksheet-pdf';
 import { formatDateDDMMYYYY } from '@/lib/academic-helpers';
+import {
+  AlignCenter,
+  AlignLeft,
+  AlignRight,
+  Award,
+  Bold,
+  CheckCircle2,
+  EyeOff,
+  Italic,
+  Minus,
+  Plus,
+  QrCode,
+  Trash2,
+  X,
+  XCircle,
+} from 'lucide-react';
 
 export const DEFAULT_MARKSHEET_SECTION_ORDER: MarksheetSectionId[] = [
   'header',
@@ -79,6 +101,7 @@ export const DEFAULT_MARKSHEET_LABELS: Required<MarksheetLabelsConfig> = {
 };
 
 export interface ResolvedMarksheetTemplate {
+  orientation: 'portrait' | 'landscape';
   layoutPreset: 'nctb-classic' | 'modern-editorial' | 'compact-fit';
   headerLayout: 'centered' | 'left-crest' | 'split-banner';
   density: 'compact' | 'balanced' | 'spacious';
@@ -89,9 +112,24 @@ export interface ResolvedMarksheetTemplate {
   sideBySideBioAndScale: boolean;
   autoFitSinglePage: boolean;
   sectionOrder: MarksheetSectionId[];
-  borderStyle: 'classic-double' | 'modern-clean' | 'official-seal' | 'none';
+  borderStyle:
+    | 'classic-double'
+    | 'modern-clean'
+    | 'official-seal'
+    | 'ornate-guilloche'
+    | 'diploma-crest'
+    | 'corner-brackets'
+    | 'none';
   accentColor: string;
   fontFamily: 'sans' | 'serif';
+  headingFont: MarksheetFontId;
+  bodyFont: MarksheetFontId;
+  pageBackgroundUrl: string;
+  pageBackgroundPublicId: string;
+  pageBackgroundOpacity: number;
+  watermarkLogoUrl: string;
+  watermarkLogoPublicId: string;
+  watermarkScalePercent: number;
   watermarkOpacity: number;
   boardTitle: string;
   headerSubtitle: string;
@@ -115,6 +153,7 @@ export interface ResolvedMarksheetTemplate {
   showAttendanceConduct: boolean;
   showQrVerification: boolean;
   labels: Required<MarksheetLabelsConfig>;
+  labelStyles: Record<string, MarksheetLabelStyle>;
   customTextBlocks: MarksheetCustomTextBlock[];
   customFields: NonNullable<MarksheetTemplate['customFields']>;
 }
@@ -132,7 +171,14 @@ export function resolveMarksheetTemplate(
     ...DEFAULT_MARKSHEET_SECTION_ORDER.filter((id) => !incomingOrder.includes(id)),
   ];
 
+  const legacyFont = template?.fontFamily || 'sans';
+  const defaultHeadingFont: MarksheetFontId =
+    legacyFont === 'serif' ? 'playfair' : 'jakarta';
+  const defaultBodyFont: MarksheetFontId =
+    legacyFont === 'serif' ? 'lora' : 'jakarta';
+
   return {
+    orientation: template?.orientation === 'landscape' ? 'landscape' : 'portrait',
     layoutPreset: template?.layoutPreset || 'nctb-classic',
     headerLayout: template?.headerLayout || 'centered',
     density: template?.density || 'balanced',
@@ -157,9 +203,25 @@ export function resolveMarksheetTemplate(
     sectionOrder: mergedOrder,
     borderStyle: template?.borderStyle || 'classic-double',
     accentColor: template?.accentColor || '#9a3412',
-    fontFamily: template?.fontFamily || 'sans',
+    fontFamily: legacyFont,
+    headingFont: template?.headingFont || defaultHeadingFont,
+    bodyFont: template?.bodyFont || defaultBodyFont,
+    pageBackgroundUrl: template?.pageBackgroundUrl || '',
+    pageBackgroundPublicId: template?.pageBackgroundPublicId || '',
+    pageBackgroundOpacity:
+      typeof template?.pageBackgroundOpacity === 'number'
+        ? Math.min(1, Math.max(0.05, template.pageBackgroundOpacity))
+        : 0.95,
+    watermarkLogoUrl: template?.watermarkLogoUrl || '',
+    watermarkLogoPublicId: template?.watermarkLogoPublicId || '',
+    watermarkScalePercent:
+      typeof template?.watermarkScalePercent === 'number'
+        ? Math.min(120, Math.max(20, template.watermarkScalePercent))
+        : 55,
     watermarkOpacity:
-      typeof template?.watermarkOpacity === 'number' ? template.watermarkOpacity : 0.1,
+      typeof template?.watermarkOpacity === 'number'
+        ? Math.min(0.35, Math.max(0.04, template.watermarkOpacity))
+        : 0.1,
     boardTitle: template?.boardTitle || '',
     headerSubtitle:
       template?.headerSubtitle || 'Academic Transcript & Official Marksheet',
@@ -186,12 +248,169 @@ export function resolveMarksheetTemplate(
       ...DEFAULT_MARKSHEET_LABELS,
       ...(template?.labels || {}),
     },
+    labelStyles: template?.labelStyles || {},
     customTextBlocks: template?.customTextBlocks || [],
     customFields: template?.customFields || [],
   };
 }
 
+interface FloatingBoxToolbarProps {
+  fontFamily?: MarksheetFontId;
+  fontSizePx?: number;
+  bold?: boolean;
+  italic?: boolean;
+  align?: 'left' | 'center' | 'right';
+  supportsAlign?: boolean;
+  isCustomBlock?: boolean;
+  onChangeFontFamily: (font?: MarksheetFontId) => void;
+  onChangeFontSize: (size: number) => void;
+  onToggleBold: () => void;
+  onToggleItalic: () => void;
+  onChangeAlign?: (align: 'left' | 'center' | 'right') => void;
+  onDeleteOrHide: () => void;
+  onClose: () => void;
+}
+
+function FloatingBoxToolbar({
+  fontFamily,
+  fontSizePx,
+  bold,
+  italic,
+  align,
+  supportsAlign,
+  isCustomBlock,
+  onChangeFontFamily,
+  onChangeFontSize,
+  onToggleBold,
+  onToggleItalic,
+  onChangeAlign,
+  onDeleteOrHide,
+  onClose,
+}: FloatingBoxToolbarProps) {
+  const currentSize = fontSizePx || 12;
+
+  return (
+    <div
+      data-ms-floating-toolbar="true"
+      onClick={(e) => e.stopPropagation()}
+      onMouseDown={(e) => e.stopPropagation()}
+      className="no-print studio-edit-indicator absolute bottom-full left-0 mb-1.5 z-50 bg-slate-900 text-white rounded-xl shadow-2xl border border-slate-700 px-2 py-1 flex items-center gap-1 text-[11px] font-sans whitespace-nowrap"
+    >
+      <select
+        value={fontFamily || ''}
+        onChange={(e) =>
+          onChangeFontFamily((e.target.value || undefined) as MarksheetFontId | undefined)
+        }
+        title="Box Font Family"
+        className="bg-slate-800 text-white border border-slate-700 rounded-lg px-1.5 py-0.5 text-[10px] font-semibold focus:outline-hidden max-w-[130px] cursor-pointer"
+      >
+        <option value="">Sheet Font</option>
+        {MARKSHEET_FONT_OPTIONS.map((f) => (
+          <option key={f.id} value={f.id}>
+            {f.label.split(' (')[0]}
+          </option>
+        ))}
+      </select>
+
+      <div className="flex items-center bg-slate-800 border border-slate-700 rounded-lg overflow-hidden">
+        <button
+          type="button"
+          onMouseDown={(e) => e.preventDefault()}
+          onClick={() => onChangeFontSize(Math.max(8, currentSize - 1))}
+          className="px-1 py-0.5 hover:bg-slate-700 cursor-pointer"
+          title="Decrease font size"
+        >
+          <Minus className="w-3 h-3" />
+        </button>
+        <span className="px-1.5 font-mono text-[10px] font-bold tabular-nums min-w-[28px] text-center">
+          {fontSizePx ? `${fontSizePx}px` : 'Auto'}
+        </span>
+        <button
+          type="button"
+          onMouseDown={(e) => e.preventDefault()}
+          onClick={() => onChangeFontSize(Math.min(28, currentSize + 1))}
+          className="px-1 py-0.5 hover:bg-slate-700 cursor-pointer"
+          title="Increase font size"
+        >
+          <Plus className="w-3 h-3" />
+        </button>
+      </div>
+
+      <button
+        type="button"
+        onMouseDown={(e) => e.preventDefault()}
+        onClick={onToggleBold}
+        className={`p-1 rounded-md cursor-pointer ${
+          bold ? 'bg-amber-500 text-slate-950' : 'hover:bg-slate-800 text-slate-200'
+        }`}
+        title="Toggle Bold"
+      >
+        <Bold className="w-3 h-3" />
+      </button>
+      <button
+        type="button"
+        onMouseDown={(e) => e.preventDefault()}
+        onClick={onToggleItalic}
+        className={`p-1 rounded-md cursor-pointer ${
+          italic ? 'bg-amber-500 text-slate-950' : 'hover:bg-slate-800 text-slate-200'
+        }`}
+        title="Toggle Italic"
+      >
+        <Italic className="w-3 h-3" />
+      </button>
+
+      {supportsAlign && onChangeAlign && (
+        <div className="flex items-center border-l border-slate-700 pl-1 gap-0.5">
+          {(
+            [
+              { val: 'left', Icon: AlignLeft },
+              { val: 'center', Icon: AlignCenter },
+              { val: 'right', Icon: AlignRight },
+            ] as const
+          ).map(({ val, Icon }) => (
+            <button
+              key={val}
+              type="button"
+              onMouseDown={(e) => e.preventDefault()}
+              onClick={() => onChangeAlign(val)}
+              className={`p-1 rounded-md cursor-pointer ${
+                (align || 'left') === val
+                  ? 'bg-amber-500 text-slate-950'
+                  : 'hover:bg-slate-800 text-slate-200'
+              }`}
+              title={`Align ${val}`}
+            >
+              <Icon className="w-3 h-3" />
+            </button>
+          ))}
+        </div>
+      )}
+
+      <button
+        type="button"
+        onMouseDown={(e) => e.preventDefault()}
+        onClick={onDeleteOrHide}
+        className="p-1 rounded-md hover:bg-red-600 text-red-300 hover:text-white border-l border-slate-700 pl-1.5 ml-0.5 cursor-pointer"
+        title={isCustomBlock ? 'Delete custom block' : 'Hide this text box'}
+      >
+        {isCustomBlock ? <Trash2 className="w-3 h-3" /> : <EyeOff className="w-3 h-3" />}
+      </button>
+
+      <button
+        type="button"
+        onMouseDown={(e) => e.preventDefault()}
+        onClick={onClose}
+        className="p-1 rounded-md hover:bg-slate-800 text-slate-400 hover:text-white cursor-pointer"
+        title="Close toolbar"
+      >
+        <X className="w-3 h-3" />
+      </button>
+    </div>
+  );
+}
+
 interface InlineEditableProps {
+  boxKey?: string;
   value: string;
   placeholder?: string;
   isEditMode?: boolean;
@@ -199,9 +418,14 @@ interface InlineEditableProps {
   onCommit?: (next: string) => void;
   className?: string;
   style?: React.CSSProperties;
+  labelStyle?: MarksheetLabelStyle;
+  activeBoxId?: string | null;
+  onActivateBox?: (boxId: string | null) => void;
+  onUpdateLabelStyle?: (boxKey: string, patch: Partial<MarksheetLabelStyle>) => void;
 }
 
 function InlineEditable({
+  boxKey,
   value,
   placeholder,
   isEditMode,
@@ -209,88 +433,301 @@ function InlineEditable({
   onCommit,
   className = '',
   style,
+  labelStyle,
+  activeBoxId,
+  onActivateBox,
+  onUpdateLabelStyle,
 }: InlineEditableProps) {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(value);
 
+  if (labelStyle?.hidden) {
+    return null;
+  }
+
+  const boxId = boxKey ? `label:${boxKey}` : undefined;
+  const isSelected = Boolean(isEditMode && boxId && activeBoxId === boxId);
+
+  const mergedStyle: React.CSSProperties = {
+    ...style,
+    ...(labelStyle?.fontFamily
+      ? { fontFamily: resolveMarksheetFontCss(labelStyle.fontFamily) }
+      : {}),
+    ...(labelStyle?.fontSizePx ? { fontSize: `${labelStyle.fontSizePx}px` } : {}),
+    ...(labelStyle?.bold !== undefined
+      ? { fontWeight: labelStyle.bold ? 700 : 400 }
+      : {}),
+    ...(labelStyle?.italic !== undefined
+      ? { fontStyle: labelStyle.italic ? 'italic' : 'normal' }
+      : {}),
+  };
+
   if (!isEditMode || !onCommit) {
     return (
-      <span className={className} style={style}>
+      <span className={className} style={mergedStyle}>
         {value || placeholder || ''}
       </span>
     );
   }
 
-  if (editing) {
-    if (multiline) {
-      return (
-        <textarea
-          autoFocus
-          rows={2}
-          value={draft}
-          onChange={(e) => setDraft(e.target.value)}
-          onBlur={() => {
-            setEditing(false);
-            onCommit(draft);
-          }}
-          onKeyDown={(e) => {
-            if (e.key === 'Escape') {
-              setEditing(false);
-              setDraft(value);
-            }
-          }}
-          className="w-full px-1.5 py-0.5 rounded bg-amber-50 text-slate-900 border border-primary-container focus:outline-hidden text-[inherit] font-[inherit] leading-snug"
-        />
-      );
-    }
-    return (
-      <input
-        type="text"
-        autoFocus
-        value={draft}
-        onChange={(e) => setDraft(e.target.value)}
-        onBlur={() => {
-          setEditing(false);
-          onCommit(draft);
+  const renderToolbar = () =>
+    isSelected && boxKey && onUpdateLabelStyle ? (
+      <FloatingBoxToolbar
+        fontFamily={labelStyle?.fontFamily}
+        fontSizePx={labelStyle?.fontSizePx}
+        bold={labelStyle?.bold}
+        italic={labelStyle?.italic}
+        onChangeFontFamily={(font) => onUpdateLabelStyle(boxKey, { fontFamily: font })}
+        onChangeFontSize={(size) => onUpdateLabelStyle(boxKey, { fontSizePx: size })}
+        onToggleBold={() => onUpdateLabelStyle(boxKey, { bold: !labelStyle?.bold })}
+        onToggleItalic={() =>
+          onUpdateLabelStyle(boxKey, { italic: !labelStyle?.italic })
+        }
+        onDeleteOrHide={() => {
+          onUpdateLabelStyle(boxKey, { hidden: true });
+          onActivateBox?.(null);
         }}
-        onKeyDown={(e) => {
-          if (e.key === 'Enter') {
-            e.preventDefault();
-            setEditing(false);
-            onCommit(draft);
-          } else if (e.key === 'Escape') {
-            setEditing(false);
-            setDraft(value);
-          }
-        }}
-        className="px-1.5 py-0.5 rounded bg-amber-50 text-slate-900 border border-primary-container focus:outline-hidden text-[inherit] font-[inherit] min-w-[70px] max-w-full"
+        onClose={() => onActivateBox?.(null)}
       />
+    ) : null;
+
+  if (editing) {
+    return (
+      <span
+        data-ms-editable-box={boxId}
+        className="relative inline-block max-w-full align-baseline"
+        onClick={(e) => e.stopPropagation()}
+      >
+        {renderToolbar()}
+        {multiline ? (
+          <textarea
+            autoFocus
+            rows={2}
+            value={draft}
+            onChange={(e) => setDraft(e.target.value)}
+            onBlur={() => {
+              setEditing(false);
+              onCommit(draft);
+            }}
+            onKeyDown={(e) => {
+              if (e.key === 'Escape') {
+                setEditing(false);
+                setDraft(value);
+                onActivateBox?.(null);
+              }
+            }}
+            style={mergedStyle}
+            className="w-full min-w-[160px] px-1.5 py-0.5 rounded bg-amber-50 text-slate-900 border border-primary-container focus:outline-hidden leading-snug"
+          />
+        ) : (
+          <input
+            type="text"
+            autoFocus
+            value={draft}
+            onChange={(e) => setDraft(e.target.value)}
+            onBlur={() => {
+              setEditing(false);
+              onCommit(draft);
+            }}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') {
+                e.preventDefault();
+                setEditing(false);
+                onCommit(draft);
+              } else if (e.key === 'Escape') {
+                setEditing(false);
+                setDraft(value);
+                onActivateBox?.(null);
+              }
+            }}
+            style={mergedStyle}
+            className="px-1.5 py-0.5 rounded bg-amber-50 text-slate-900 border border-primary-container focus:outline-hidden min-w-[70px] max-w-full"
+          />
+        )}
+      </span>
     );
   }
 
   return (
     <span
+      data-ms-editable-box={boxId}
       role="button"
       tabIndex={0}
-      title="Click to edit text inline"
+      title="Click to edit text, font, size, or hide"
       onClick={(e) => {
         e.stopPropagation();
+        if (boxId && onActivateBox) {
+          onActivateBox(boxId);
+        }
         setDraft(value);
         setEditing(true);
       }}
       onKeyDown={(e) => {
         if (e.key === 'Enter' || e.key === ' ') {
           e.preventDefault();
+          if (boxId && onActivateBox) {
+            onActivateBox(boxId);
+          }
           setDraft(value);
           setEditing(true);
         }
       }}
-      style={style}
-      className={`${className} cursor-text rounded px-0.5 -mx-0.5 border border-dashed border-transparent hover:border-amber-500/80 hover:bg-amber-50/60 transition-colors`}
+      style={mergedStyle}
+      className={`${className} relative inline-block cursor-text rounded px-0.5 -mx-0.5 border border-dashed transition-colors ${
+        isSelected
+          ? 'border-amber-500 bg-amber-50/80 ring-1 ring-amber-400/50'
+          : 'border-transparent hover:border-amber-500/80 hover:bg-amber-50/60'
+      }`}
     >
+      {renderToolbar()}
       {value || <span className="opacity-50 italic">{placeholder || 'Click to edit'}</span>}
     </span>
   );
+}
+
+function BorderFrameDecorations({
+  borderStyle,
+  accentColor,
+  borderRadiusPx,
+}: {
+  borderStyle: ResolvedMarksheetTemplate['borderStyle'];
+  accentColor: string;
+  borderRadiusPx: number;
+}) {
+  if (borderStyle === 'official-seal') {
+    return (
+      <div
+        className="pointer-events-none absolute inset-1.5 border"
+        style={{
+          borderColor: `${accentColor}40`,
+          borderRadius: `${Math.max(0, borderRadiusPx - 4)}px`,
+        }}
+      />
+    );
+  }
+
+  if (borderStyle === 'ornate-guilloche') {
+    return (
+      <>
+        <div
+          className="pointer-events-none absolute inset-1.5 border"
+          style={{
+            borderColor: `${accentColor}45`,
+            borderRadius: `${Math.max(0, borderRadiusPx - 4)}px`,
+          }}
+        />
+        <div
+          className="pointer-events-none absolute inset-2.5 border border-dashed"
+          style={{
+            borderColor: `${accentColor}30`,
+            borderRadius: `${Math.max(0, borderRadiusPx - 6)}px`,
+          }}
+        />
+        {(['tl', 'tr', 'bl', 'br'] as const).map((corner) => {
+          const pos =
+            corner === 'tl'
+              ? 'top-1 left-1'
+              : corner === 'tr'
+              ? 'top-1 right-1 -scale-x-100'
+              : corner === 'bl'
+              ? 'bottom-1 left-1 -scale-y-100'
+              : 'bottom-1 right-1 -scale-x-100 -scale-y-100';
+          return (
+            <svg
+              key={corner}
+              viewBox="0 0 48 48"
+              className={`pointer-events-none absolute w-9 h-9 ${pos}`}
+              fill="none"
+              style={{ color: accentColor }}
+            >
+              <path
+                d="M4 40V14C4 8.477 8.477 4 14 4H40"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeOpacity="0.8"
+              />
+              <path
+                d="M10 34V16C10 12.686 12.686 10 16 10H34"
+                stroke="currentColor"
+                strokeWidth="1.2"
+                strokeOpacity="0.55"
+              />
+              <circle cx="10" cy="10" r="3.2" fill="currentColor" fillOpacity="0.75" />
+            </svg>
+          );
+        })}
+      </>
+    );
+  }
+
+  if (borderStyle === 'diploma-crest') {
+    return (
+      <>
+        <div
+          className="pointer-events-none absolute inset-1 border-2"
+          style={{
+            borderColor: `${accentColor}35`,
+            borderRadius: `${Math.max(0, borderRadiusPx - 3)}px`,
+          }}
+        />
+        <div
+          className="pointer-events-none absolute inset-2.5 border"
+          style={{
+            borderColor: `${accentColor}55`,
+            borderRadius: `${Math.max(0, borderRadiusPx - 6)}px`,
+          }}
+        />
+        {(['tl', 'tr', 'bl', 'br'] as const).map((corner) => {
+          const pos =
+            corner === 'tl'
+              ? 'top-1.5 left-1.5'
+              : corner === 'tr'
+              ? 'top-1.5 right-1.5'
+              : corner === 'bl'
+              ? 'bottom-1.5 left-1.5'
+              : 'bottom-1.5 right-1.5';
+          return (
+            <div
+              key={corner}
+              className={`pointer-events-none absolute w-3.5 h-3.5 rounded-full border-2 bg-white ${pos}`}
+              style={{ borderColor: accentColor }}
+            >
+              <div
+                className="w-1.5 h-1.5 rounded-full m-auto mt-[2px]"
+                style={{ backgroundColor: accentColor }}
+              />
+            </div>
+          );
+        })}
+      </>
+    );
+  }
+
+  if (borderStyle === 'corner-brackets') {
+    return (
+      <>
+        {(['tl', 'tr', 'bl', 'br'] as const).map((corner) => {
+          const borderPos =
+            corner === 'tl'
+              ? 'top-0 left-0 border-t-[3px] border-l-[3px]'
+              : corner === 'tr'
+              ? 'top-0 right-0 border-t-[3px] border-r-[3px]'
+              : corner === 'bl'
+              ? 'bottom-0 left-0 border-b-[3px] border-l-[3px]'
+              : 'bottom-0 right-0 border-b-[3px] border-r-[3px]';
+          return (
+            <div
+              key={corner}
+              className={`pointer-events-none absolute w-7 h-7 ${borderPos}`}
+              style={{ borderColor: accentColor }}
+            />
+          );
+        })}
+      </>
+    );
+  }
+
+  return null;
 }
 
 interface MarksheetDocumentProps {
@@ -312,8 +749,14 @@ interface MarksheetDocumentProps {
   sheetRef?: React.Ref<HTMLDivElement>;
   isInlineEditMode?: boolean;
   onUpdateLabel?: (key: keyof MarksheetLabelsConfig, value: string) => void;
+  onUpdateLabelStyle?: (key: string, patch: Partial<MarksheetLabelStyle>) => void;
   onUpdateTemplateField?: (patch: Partial<MarksheetTemplate>) => void;
   onUpdateCustomBlock?: (blockId: string, content: string) => void;
+  onUpdateCustomBlockStyle?: (
+    blockId: string,
+    patch: Partial<MarksheetCustomTextBlock>
+  ) => void;
+  onRemoveCustomBlock?: (blockId: string) => void;
 }
 
 export default function MarksheetDocument({
@@ -331,17 +774,57 @@ export default function MarksheetDocument({
   sheetRef,
   isInlineEditMode = false,
   onUpdateLabel,
+  onUpdateLabelStyle,
   onUpdateTemplateField,
   onUpdateCustomBlock,
+  onUpdateCustomBlockStyle,
+  onRemoveCustomBlock,
 }: MarksheetDocumentProps) {
+  const [activeBoxId, setActiveBoxId] = useState<string | null>(null);
+  const localWrapperRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    registerGlobalMarksheetPrintCalibrator();
+  }, []);
+
+  useEffect(() => {
+    if (!isInlineEditMode) {
+      setActiveBoxId(null);
+      return;
+    }
+    const handleOutside = (e: MouseEvent) => {
+      const target = e.target as HTMLElement | null;
+      if (!target) return;
+      if (
+        target.closest('[data-ms-floating-toolbar="true"]') ||
+        target.closest('[data-ms-editable-box]')
+      ) {
+        return;
+      }
+      setActiveBoxId(null);
+    };
+    document.addEventListener('mousedown', handleOutside);
+    return () => document.removeEventListener('mousedown', handleOutside);
+  }, [isInlineEditMode]);
+
   const t = resolveMarksheetTemplate(templateOverride ?? exam?.marksheetTemplate);
   const L = t.labels;
   const meta: StudentMarksheetMeta =
     metaOverride ?? exam?.studentMarksheetMeta?.[result.studentId] ?? {};
 
+  const isLandscape = t.orientation === 'landscape';
+  const headingFontCss = resolveMarksheetFontCss(t.headingFont, 'jakarta');
+  const bodyFontCss = resolveMarksheetFontCss(t.bodyFont, 'jakarta');
+
   const stationeryMode =
     stationeryModeOverride ?? exam?.stationeryMode ?? 'full-design';
-  const bgUrl = bgUrlOverride ?? exam?.marksheetBgUrl ?? '';
+
+  // Split Image Layer Resolution with seamless legacy fallback
+  const pageBgUrl = t.pageBackgroundUrl || '';
+  const legacyBgUrl = bgUrlOverride ?? exam?.marksheetBgUrl ?? '';
+  const watermarkLogoUrl =
+    t.watermarkLogoUrl || (!pageBgUrl ? legacyBgUrl : '');
+
   const signatories = (signatoriesOverride ?? exam?.signatories ?? []).filter(
     (s) => s.enabled
   );
@@ -377,31 +860,38 @@ export default function MarksheetDocument({
   );
 
   const densityPadding =
-    t.density === 'compact'
-      ? 'p-3.5 sm:p-4'
+    t.density === 'compact' || isLandscape
+      ? 'p-3 sm:p-3.5'
       : t.density === 'spacious'
       ? 'p-6 sm:p-7'
       : 'p-4 sm:p-5';
   const rowPy =
-    t.density === 'compact'
+    t.density === 'compact' || isLandscape
       ? 'py-1'
       : t.density === 'spacious'
       ? 'py-2'
       : 'py-1.5';
   const sectionGap =
-    t.density === 'compact'
-      ? 'space-y-2.5'
+    t.density === 'compact' || isLandscape
+      ? 'space-y-2'
       : t.density === 'spacious'
       ? 'space-y-4'
       : 'space-y-3';
 
   const frameDynamicStyle: React.CSSProperties =
-    stationeryMode === 'pre-printed-overlay' || t.borderStyle === 'none' || t.borderWidthPx === 0
+    stationeryMode === 'pre-printed-overlay' ||
+    t.borderStyle === 'none' ||
+    t.borderStyle === 'corner-brackets' ||
+    t.borderWidthPx === 0
       ? {}
       : {
-          borderColor: `${t.accentColor}66`,
+          borderColor: `${t.accentColor}75`,
           borderWidth: `${t.borderWidthPx}px`,
-          borderStyle: t.borderStyle === 'classic-double' ? 'double' : 'solid',
+          borderStyle:
+            t.borderStyle === 'classic-double' ||
+            t.borderStyle === 'ornate-guilloche'
+              ? 'double'
+              : 'solid',
           borderRadius: `${t.borderRadiusPx}px`,
         };
 
@@ -472,14 +962,24 @@ export default function MarksheetDocument({
     return output;
   };
 
+  const editableBindings = (boxKey: string) => ({
+    boxKey,
+    labelStyle: t.labelStyles[boxKey],
+    activeBoxId,
+    onActivateBox: setActiveBoxId,
+    onUpdateLabelStyle,
+  });
+
   const renderTextBlocksForPlacement = (
     placement: MarksheetCustomTextBlock['placement']
   ) => {
     const blocks = t.customTextBlocks.filter((b) => b.placement === placement);
     if (blocks.length === 0) return null;
     return (
-      <div className="space-y-2 relative">
+      <div className="space-y-1.5 relative">
         {blocks.map((block) => {
+          const blockBoxId = `block:${block.id}`;
+          const isSelected = Boolean(isInlineEditMode && activeBoxId === blockBoxId);
           const alignClass =
             block.align === 'center'
               ? 'text-center'
@@ -492,15 +992,61 @@ export default function MarksheetDocument({
           return (
             <div
               key={block.id}
-              className={`${alignClass} ${
+              data-ms-editable-box={blockBoxId}
+              onClick={(e) => {
+                if (!isInlineEditMode) return;
+                e.stopPropagation();
+                setActiveBoxId(blockBoxId);
+              }}
+              className={`relative ${alignClass} ${
                 block.bordered
-                  ? 'p-2.5 rounded-lg bg-slate-50/80 border border-slate-200'
+                  ? 'p-2 rounded-lg bg-slate-50/85 border border-slate-200'
                   : 'px-1 py-0.5'
-              } ${block.bold ? 'font-bold' : ''} ${block.italic ? 'italic' : ''}`}
+              } ${block.bold ? 'font-bold' : ''} ${block.italic ? 'italic' : ''} ${
+                isInlineEditMode
+                  ? isSelected
+                    ? 'ring-1 ring-amber-500 border-amber-500 border border-dashed'
+                    : 'hover:ring-1 hover:ring-amber-400/70'
+                  : ''
+              }`}
               style={{
                 fontSize: `${block.fontSizePx || 11}px`,
+                ...(block.fontFamily
+                  ? { fontFamily: resolveMarksheetFontCss(block.fontFamily) }
+                  : {}),
               }}
             >
+              {isSelected && (
+                <FloatingBoxToolbar
+                  fontFamily={block.fontFamily}
+                  fontSizePx={block.fontSizePx || 11}
+                  bold={block.bold}
+                  italic={block.italic}
+                  align={block.align || 'left'}
+                  supportsAlign
+                  isCustomBlock
+                  onChangeFontFamily={(font) =>
+                    onUpdateCustomBlockStyle?.(block.id, { fontFamily: font })
+                  }
+                  onChangeFontSize={(size) =>
+                    onUpdateCustomBlockStyle?.(block.id, { fontSizePx: size })
+                  }
+                  onToggleBold={() =>
+                    onUpdateCustomBlockStyle?.(block.id, { bold: !block.bold })
+                  }
+                  onToggleItalic={() =>
+                    onUpdateCustomBlockStyle?.(block.id, { italic: !block.italic })
+                  }
+                  onChangeAlign={(align) =>
+                    onUpdateCustomBlockStyle?.(block.id, { align })
+                  }
+                  onDeleteOrHide={() => {
+                    onRemoveCustomBlock?.(block.id);
+                    setActiveBoxId(null);
+                  }}
+                  onClose={() => setActiveBoxId(null)}
+                />
+              )}
               {block.title && (
                 <div className="text-[10px] uppercase tracking-wider font-bold text-slate-500 mb-0.5">
                   {block.title}
@@ -545,21 +1091,22 @@ export default function MarksheetDocument({
       return (
         <div
           key="header"
-          className="pb-3 border-b-2 relative flex items-center gap-4 text-left"
+          className={`${isLandscape ? 'pb-2' : 'pb-3'} border-b-2 relative flex items-center gap-4 text-left`}
           style={{ borderColor: `${t.accentColor}55` }}
         >
           {cmsConfig.crestUrl && (
             <img
               src={cmsConfig.crestUrl}
               alt={cmsConfig.schoolName}
-              className="h-14 w-auto object-contain shrink-0"
+              className={`${isLandscape ? 'h-11' : 'h-14'} w-auto object-contain shrink-0`}
               referrerPolicy="no-referrer"
             />
           )}
           <div className="flex-1 min-w-0">
-            {(t.boardTitle || isInlineEditMode) && (
+            {(t.boardTitle || isInlineEditMode) && !t.labelStyles.boardTitle?.hidden && (
               <span className="text-[10px] font-bold tracking-[0.16em] uppercase text-slate-500 block">
                 <InlineEditable
+                  {...editableBindings('boardTitle')}
                   value={t.boardTitle}
                   placeholder="Optional Education Board Title"
                   isEditMode={isInlineEditMode}
@@ -568,10 +1115,13 @@ export default function MarksheetDocument({
               </span>
             )}
             <h1
-              className="text-xl sm:text-2xl font-extrabold tracking-tight leading-tight"
-              style={{ color: t.accentColor }}
+              className={`${
+                isLandscape ? 'text-lg sm:text-xl' : 'text-xl sm:text-2xl'
+              } font-extrabold tracking-tight leading-tight`}
+              style={{ color: t.accentColor, fontFamily: headingFontCss }}
             >
               <InlineEditable
+                {...editableBindings('schoolNameOverride')}
                 value={resolvedSchoolName}
                 isEditMode={isInlineEditMode}
                 onCommit={(v) => onUpdateLabel?.('schoolNameOverride', v)}
@@ -579,6 +1129,7 @@ export default function MarksheetDocument({
             </h1>
             <p className="text-[11px] text-slate-600 font-mono mt-0.5">
               <InlineEditable
+                {...editableBindings('schoolMetaOverride')}
                 value={resolvedSchoolMeta}
                 isEditMode={isInlineEditMode}
                 onCommit={(v) => onUpdateLabel?.('schoolMetaOverride', v)}
@@ -586,19 +1137,23 @@ export default function MarksheetDocument({
             </p>
           </div>
           <div className="text-right shrink-0 space-y-1">
-            <div
-              className="px-3 py-1 rounded-md text-[10px] font-bold uppercase tracking-wider text-white inline-flex items-center gap-1"
-              style={{ backgroundColor: t.accentColor }}
-            >
-              <Award className="w-3 h-3 shrink-0" />
-              <InlineEditable
-                value={t.headerSubtitle}
-                isEditMode={isInlineEditMode}
-                onCommit={(v) => onUpdateTemplateField?.({ headerSubtitle: v })}
-              />
-            </div>
+            {!t.labelStyles.headerSubtitle?.hidden && (
+              <div
+                className="px-3 py-1 rounded-md text-[10px] font-bold uppercase tracking-wider text-white inline-flex items-center gap-1"
+                style={{ backgroundColor: t.accentColor, fontFamily: headingFontCss }}
+              >
+                <Award className="w-3 h-3 shrink-0" />
+                <InlineEditable
+                  {...editableBindings('headerSubtitle')}
+                  value={t.headerSubtitle}
+                  isEditMode={isInlineEditMode}
+                  onCommit={(v) => onUpdateTemplateField?.({ headerSubtitle: v })}
+                />
+              </div>
+            )}
             <span className="text-[11px] font-semibold text-slate-800 block">
               <InlineEditable
+                {...editableBindings('examTitleOverride')}
                 value={resolvedExamTitle}
                 isEditMode={isInlineEditMode}
                 onCommit={(v) => onUpdateLabel?.('examTitleOverride', v)}
@@ -613,7 +1168,9 @@ export default function MarksheetDocument({
       return (
         <div key="header" className="relative space-y-2">
           <div
-            className="rounded-lg px-4 py-3 text-white flex items-center justify-between gap-4"
+            className={`rounded-lg px-4 ${
+              isLandscape ? 'py-2' : 'py-3'
+            } text-white flex items-center justify-between gap-4`}
             style={{ backgroundColor: t.accentColor }}
           >
             <div className="flex items-center gap-3 min-w-0">
@@ -621,14 +1178,17 @@ export default function MarksheetDocument({
                 <img
                   src={cmsConfig.crestUrl}
                   alt={cmsConfig.schoolName}
-                  className="h-12 w-auto object-contain bg-white/95 rounded-md p-1 shrink-0"
+                  className={`${
+                    isLandscape ? 'h-10' : 'h-12'
+                  } w-auto object-contain bg-white/95 rounded-md p-1 shrink-0`}
                   referrerPolicy="no-referrer"
                 />
               )}
               <div className="min-w-0">
-                {(t.boardTitle || isInlineEditMode) && (
+                {(t.boardTitle || isInlineEditMode) && !t.labelStyles.boardTitle?.hidden && (
                   <div className="text-[9px] uppercase tracking-[0.18em] text-white/80 font-semibold">
                     <InlineEditable
+                      {...editableBindings('boardTitle')}
                       value={t.boardTitle}
                       placeholder="Optional Board Line"
                       isEditMode={isInlineEditMode}
@@ -636,8 +1196,14 @@ export default function MarksheetDocument({
                     />
                   </div>
                 )}
-                <h1 className="text-lg sm:text-xl font-extrabold tracking-tight leading-tight">
+                <h1
+                  className={`${
+                    isLandscape ? 'text-base sm:text-lg' : 'text-lg sm:text-xl'
+                  } font-extrabold tracking-tight leading-tight`}
+                  style={{ fontFamily: headingFontCss }}
+                >
                   <InlineEditable
+                    {...editableBindings('schoolNameOverride')}
                     value={resolvedSchoolName}
                     isEditMode={isInlineEditMode}
                     onCommit={(v) => onUpdateLabel?.('schoolNameOverride', v)}
@@ -645,6 +1211,7 @@ export default function MarksheetDocument({
                 </h1>
                 <p className="text-[10px] text-white/85 font-mono truncate">
                   <InlineEditable
+                    {...editableBindings('schoolMetaOverride')}
                     value={resolvedSchoolMeta}
                     isEditMode={isInlineEditMode}
                     onCommit={(v) => onUpdateLabel?.('schoolMetaOverride', v)}
@@ -653,15 +1220,22 @@ export default function MarksheetDocument({
               </div>
             </div>
             <div className="text-right shrink-0">
-              <div className="text-[11px] font-bold uppercase tracking-wider text-white">
-                <InlineEditable
-                  value={t.headerSubtitle}
-                  isEditMode={isInlineEditMode}
-                  onCommit={(v) => onUpdateTemplateField?.({ headerSubtitle: v })}
-                />
-              </div>
+              {!t.labelStyles.headerSubtitle?.hidden && (
+                <div
+                  className="text-[11px] font-bold uppercase tracking-wider text-white"
+                  style={{ fontFamily: headingFontCss }}
+                >
+                  <InlineEditable
+                    {...editableBindings('headerSubtitle')}
+                    value={t.headerSubtitle}
+                    isEditMode={isInlineEditMode}
+                    onCommit={(v) => onUpdateTemplateField?.({ headerSubtitle: v })}
+                  />
+                </div>
+              )}
               <div className="text-xs font-semibold text-white/90 mt-0.5">
                 <InlineEditable
+                  {...editableBindings('examTitleOverride')}
                   value={resolvedExamTitle}
                   isEditMode={isInlineEditMode}
                   onCommit={(v) => onUpdateLabel?.('examTitleOverride', v)}
@@ -673,11 +1247,89 @@ export default function MarksheetDocument({
       );
     }
 
-    // Default Centered Institutional Header
+    // Default Centered Institutional Header (compact horizontal variant in Landscape)
+    if (isLandscape) {
+      return (
+        <div
+          key="header"
+          className="flex items-center justify-between gap-4 pb-2 border-b-2 relative"
+          style={{ borderColor: `${t.accentColor}55` }}
+        >
+          <div className="flex items-center gap-3 min-w-0">
+            {cmsConfig.crestUrl && (
+              <img
+                src={cmsConfig.crestUrl}
+                alt={cmsConfig.schoolName}
+                className="h-12 w-auto object-contain shrink-0"
+                referrerPolicy="no-referrer"
+              />
+            )}
+            <div className="min-w-0">
+              {(t.boardTitle || isInlineEditMode) && !t.labelStyles.boardTitle?.hidden && (
+                <span className="text-[9px] font-bold tracking-[0.16em] uppercase text-slate-500 block">
+                  <InlineEditable
+                    {...editableBindings('boardTitle')}
+                    value={t.boardTitle}
+                    placeholder="Optional Education Board / Trust Line"
+                    isEditMode={isInlineEditMode}
+                    onCommit={(v) => onUpdateTemplateField?.({ boardTitle: v })}
+                  />
+                </span>
+              )}
+              <h1
+                className="text-lg sm:text-xl font-extrabold tracking-tight leading-tight"
+                style={{ color: t.accentColor, fontFamily: headingFontCss }}
+              >
+                <InlineEditable
+                  {...editableBindings('schoolNameOverride')}
+                  value={resolvedSchoolName}
+                  isEditMode={isInlineEditMode}
+                  onCommit={(v) => onUpdateLabel?.('schoolNameOverride', v)}
+                />
+              </h1>
+              <p className="text-[10px] text-slate-600 font-mono">
+                <InlineEditable
+                  {...editableBindings('schoolMetaOverride')}
+                  value={resolvedSchoolMeta}
+                  isEditMode={isInlineEditMode}
+                  onCommit={(v) => onUpdateLabel?.('schoolMetaOverride', v)}
+                />
+              </p>
+            </div>
+          </div>
+
+          <div className="text-right shrink-0">
+            {!t.labelStyles.headerSubtitle?.hidden && (
+              <div
+                className="px-3.5 py-1 rounded-md text-[10px] font-bold uppercase tracking-wider text-white inline-flex items-center gap-1.5"
+                style={{ backgroundColor: t.accentColor, fontFamily: headingFontCss }}
+              >
+                <Award className="w-3.5 h-3.5 shrink-0" />
+                <InlineEditable
+                  {...editableBindings('headerSubtitle')}
+                  value={t.headerSubtitle}
+                  isEditMode={isInlineEditMode}
+                  onCommit={(v) => onUpdateTemplateField?.({ headerSubtitle: v })}
+                />
+              </div>
+            )}
+            <span className="text-xs font-semibold text-slate-800 mt-1 block">
+              <InlineEditable
+                {...editableBindings('examTitleOverride')}
+                value={resolvedExamTitle}
+                isEditMode={isInlineEditMode}
+                onCommit={(v) => onUpdateLabel?.('examTitleOverride', v)}
+              />
+            </span>
+          </div>
+        </div>
+      );
+    }
+
     return (
       <div
         key="header"
-        className="flex flex-col items-center text-center pb-3.5 border-b-2 relative"
+        className="flex flex-col items-center text-center pb-3 border-b-2 relative"
         style={{ borderColor: `${t.accentColor}55` }}
       >
         {cmsConfig.crestUrl && (
@@ -688,9 +1340,10 @@ export default function MarksheetDocument({
             referrerPolicy="no-referrer"
           />
         )}
-        {(t.boardTitle || isInlineEditMode) && (
+        {(t.boardTitle || isInlineEditMode) && !t.labelStyles.boardTitle?.hidden && (
           <span className="text-[10px] font-bold tracking-[0.18em] uppercase text-slate-500 mb-0.5">
             <InlineEditable
+              {...editableBindings('boardTitle')}
               value={t.boardTitle}
               placeholder="Optional Education Board / Trust Line"
               isEditMode={isInlineEditMode}
@@ -700,9 +1353,10 @@ export default function MarksheetDocument({
         )}
         <h1
           className="text-xl sm:text-2xl font-extrabold tracking-tight"
-          style={{ color: t.accentColor }}
+          style={{ color: t.accentColor, fontFamily: headingFontCss }}
         >
           <InlineEditable
+            {...editableBindings('schoolNameOverride')}
             value={resolvedSchoolName}
             isEditMode={isInlineEditMode}
             onCommit={(v) => onUpdateLabel?.('schoolNameOverride', v)}
@@ -710,29 +1364,261 @@ export default function MarksheetDocument({
         </h1>
         <p className="text-[11px] text-slate-600 font-mono mt-0.5">
           <InlineEditable
+            {...editableBindings('schoolMetaOverride')}
             value={resolvedSchoolMeta}
             isEditMode={isInlineEditMode}
             onCommit={(v) => onUpdateLabel?.('schoolMetaOverride', v)}
           />
         </p>
-        <div
-          className="mt-2 px-4 py-1 rounded-md text-[11px] font-bold uppercase tracking-wider text-white inline-flex items-center gap-1.5"
-          style={{ backgroundColor: t.accentColor }}
-        >
-          <Award className="w-3.5 h-3.5 shrink-0" />
-          <InlineEditable
-            value={t.headerSubtitle}
-            isEditMode={isInlineEditMode}
-            onCommit={(v) => onUpdateTemplateField?.({ headerSubtitle: v })}
-          />
-        </div>
+        {!t.labelStyles.headerSubtitle?.hidden && (
+          <div
+            className="mt-2 px-4 py-1 rounded-md text-[11px] font-bold uppercase tracking-wider text-white inline-flex items-center gap-1.5"
+            style={{ backgroundColor: t.accentColor, fontFamily: headingFontCss }}
+          >
+            <Award className="w-3.5 h-3.5 shrink-0" />
+            <InlineEditable
+              {...editableBindings('headerSubtitle')}
+              value={t.headerSubtitle}
+              isEditMode={isInlineEditMode}
+              onCommit={(v) => onUpdateTemplateField?.({ headerSubtitle: v })}
+            />
+          </div>
+        )}
         <span className="text-xs font-semibold text-slate-800 mt-1.5">
           <InlineEditable
+            {...editableBindings('examTitleOverride')}
             value={resolvedExamTitle}
             isEditMode={isInlineEditMode}
             onCommit={(v) => onUpdateLabel?.('examTitleOverride', v)}
           />
         </span>
+      </div>
+    );
+  };
+
+  const renderCandidateBioCard = (fullWidth = false) => (
+    <div
+      className={`${
+        fullWidth ? 'w-full' : t.showGradingScale && t.sideBySideBioAndScale ? 'sm:col-span-8' : 'w-full'
+      } bg-slate-50/85 ${isLandscape ? 'p-2.5' : 'p-3'} rounded-xl border border-slate-200 flex gap-3 items-start`}
+    >
+      {t.showStudentPhoto && (
+        <div
+          className={`${
+            isLandscape ? 'w-14 h-16' : 'w-16 h-20'
+          } rounded-lg border border-slate-300 bg-white overflow-hidden shrink-0 flex items-center justify-center`}
+        >
+          {effectivePhotoUrl ? (
+            <img
+              src={effectivePhotoUrl}
+              alt={result.studentName}
+              referrerPolicy="no-referrer"
+              className="w-full h-full object-cover"
+            />
+          ) : (
+            <span className="text-[10px] font-bold text-slate-400 text-center px-1">
+              Photo
+            </span>
+          )}
+        </div>
+      )}
+
+      <div
+        className={`grid ${
+          isLandscape ? 'grid-cols-3 gap-x-3 gap-y-1' : 'grid-cols-2 gap-x-4 gap-y-1.5'
+        } flex-1`}
+      >
+        <div className={t.showRollReg ? '' : isLandscape ? 'col-span-3' : 'col-span-2'}>
+          <span className="text-slate-500 block text-[10px] uppercase tracking-wider">
+            <InlineEditable
+              {...editableBindings('candidateNameLabel')}
+              value={L.candidateNameLabel}
+              isEditMode={isInlineEditMode}
+              onCommit={(v) => onUpdateLabel?.('candidateNameLabel', v)}
+            />
+          </span>
+          <span
+            className="font-bold text-sm text-slate-900 block leading-snug"
+            style={{ fontFamily: headingFontCss }}
+          >
+            {result.studentName}
+          </span>
+          {t.showBanglaName && effectiveBanglaName && (
+            <span className="text-[11px] text-slate-600 block">
+              {effectiveBanglaName}
+            </span>
+          )}
+        </div>
+
+        {t.showRollReg && (
+          <div>
+            <span className="text-slate-500 block text-[10px] uppercase tracking-wider">
+              <InlineEditable
+                {...editableBindings('rollRegLabel')}
+                value={L.rollRegLabel}
+                isEditMode={isInlineEditMode}
+                onCommit={(v) => onUpdateLabel?.('rollRegLabel', v)}
+              />
+            </span>
+            <span
+              className="font-bold font-mono text-sm block tabular-nums"
+              style={{ color: t.accentColor }}
+            >
+              <InlineEditable
+                {...editableBindings('rollPrefix')}
+                value={L.rollPrefix}
+                isEditMode={isInlineEditMode}
+                onCommit={(v) => onUpdateLabel?.('rollPrefix', v)}
+              />
+              {result.rollNumber}
+            </span>
+            <span className="text-[10px] font-mono text-slate-600 block tabular-nums">
+              <InlineEditable
+                {...editableBindings('regPrefix')}
+                value={L.regPrefix}
+                isEditMode={isInlineEditMode}
+                onCommit={(v) => onUpdateLabel?.('regPrefix', v)}
+              />{' '}
+              {result.registrationNumber || '—'}
+            </span>
+          </div>
+        )}
+
+        {t.showFatherMother && (
+          <>
+            <div>
+              <span className="text-slate-500 block text-[10px] uppercase tracking-wider">
+                <InlineEditable
+                  {...editableBindings('fatherNameLabel')}
+                  value={L.fatherNameLabel}
+                  isEditMode={isInlineEditMode}
+                  onCommit={(v) => onUpdateLabel?.('fatherNameLabel', v)}
+                />
+              </span>
+              <span className="font-medium text-slate-800">{result.fatherName || '—'}</span>
+            </div>
+            <div>
+              <span className="text-slate-500 block text-[10px] uppercase tracking-wider">
+                <InlineEditable
+                  {...editableBindings('motherNameLabel')}
+                  value={L.motherNameLabel}
+                  isEditMode={isInlineEditMode}
+                  onCommit={(v) => onUpdateLabel?.('motherNameLabel', v)}
+                />
+              </span>
+              <span className="font-medium text-slate-800">{result.motherName || '—'}</span>
+            </div>
+          </>
+        )}
+
+        {t.showClassSectionGroup && (
+          <>
+            <div>
+              <span className="text-slate-500 block text-[10px] uppercase tracking-wider">
+                <InlineEditable
+                  {...editableBindings('classSectionLabel')}
+                  value={L.classSectionLabel}
+                  isEditMode={isInlineEditMode}
+                  onCommit={(v) => onUpdateLabel?.('classSectionLabel', v)}
+                />
+              </span>
+              <span className="font-semibold text-slate-900">
+                {result.className} —{' '}
+                {result.sectionName === 'Common' ? 'Combined Cohort' : result.sectionName}
+              </span>
+            </div>
+            <div>
+              <span className="text-slate-500 block text-[10px] uppercase tracking-wider">
+                <InlineEditable
+                  {...editableBindings('groupShiftLabel')}
+                  value={L.groupShiftLabel}
+                  isEditMode={isInlineEditMode}
+                  onCommit={(v) => onUpdateLabel?.('groupShiftLabel', v)}
+                />
+              </span>
+              <span className="font-semibold text-slate-900">
+                {result.group} ({result.shift})
+              </span>
+            </div>
+          </>
+        )}
+
+        {t.showSystemId && (
+          <div>
+            <span className="text-slate-500 block text-[10px] uppercase tracking-wider">
+              <InlineEditable
+                {...editableBindings('studentIdLabel')}
+                value={L.studentIdLabel}
+                isEditMode={isInlineEditMode}
+                onCommit={(v) => onUpdateLabel?.('studentIdLabel', v)}
+              />
+            </span>
+            <span className="font-mono font-semibold text-slate-800 tabular-nums">
+              {result.systemId}
+            </span>
+          </div>
+        )}
+
+        {t.showDateOfBirth && (
+          <div>
+            <span className="text-slate-500 block text-[10px] uppercase tracking-wider">
+              <InlineEditable
+                {...editableBindings('dobLabel')}
+                value={L.dobLabel}
+                isEditMode={isInlineEditMode}
+                onCommit={(v) => onUpdateLabel?.('dobLabel', v)}
+              />
+            </span>
+            <span className="font-mono font-semibold text-slate-800 tabular-nums">
+              {formatDateDDMMYYYY(effectiveDob)}
+            </span>
+          </div>
+        )}
+
+        {gridCustomFields.map((field) => (
+          <div key={field.id}>
+            <span className="text-slate-500 block text-[10px] uppercase tracking-wider">
+              {field.label}
+            </span>
+            <span className="font-semibold text-slate-900">
+              {getCustomFieldValue(field.id, field.defaultValue)}
+            </span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+
+  const renderGradingScaleCard = (fullWidth = false) => {
+    if (!t.showGradingScale) return null;
+    return (
+      <div
+        className={`${
+          fullWidth ? 'w-full' : t.sideBySideBioAndScale ? 'sm:col-span-4' : 'w-full'
+        } bg-slate-50/85 p-2.5 rounded-xl border border-slate-200 text-[10px]`}
+      >
+        <span
+          className="font-bold text-center block uppercase text-[9px] mb-1 tracking-wider"
+          style={{ color: t.accentColor, fontFamily: headingFontCss }}
+        >
+          <InlineEditable
+            {...editableBindings('gradingScaleTitle')}
+            value={L.gradingScaleTitle}
+            isEditMode={isInlineEditMode}
+            onCommit={(v) => onUpdateLabel?.('gradingScaleTitle', v)}
+          />
+        </span>
+        <div className="grid grid-cols-3 gap-0.5 text-center font-mono tabular-nums">
+          <span className="font-semibold">80–100</span><span>A+</span><span className="font-bold">5.0</span>
+          <span className="font-semibold">70–79</span><span>A</span><span className="font-bold">4.0</span>
+          <span className="font-semibold">60–69</span><span>A-</span><span className="font-bold">3.5</span>
+          <span className="font-semibold">50–59</span><span>B</span><span className="font-bold">3.0</span>
+          <span className="font-semibold">40–49</span><span>C</span><span className="font-bold">2.0</span>
+          <span className="font-semibold">33–39</span><span>D</span><span className="font-bold">1.0</span>
+          <span className="font-semibold text-red-600">0–32</span>
+          <span className="text-red-600 font-bold">F</span>
+          <span className="text-red-600 font-bold">0.0</span>
+        </div>
       </div>
     );
   };
@@ -744,205 +1630,8 @@ export default function MarksheetDocument({
         t.showGradingScale && t.sideBySideBioAndScale ? 'sm:grid-cols-12' : ''
       } gap-3 text-xs relative`}
     >
-      <div
-        className={`${
-          t.showGradingScale && t.sideBySideBioAndScale ? 'sm:col-span-8' : 'w-full'
-        } bg-slate-50/85 p-3 rounded-xl border border-slate-200 flex gap-3 items-start`}
-      >
-        {t.showStudentPhoto && (
-          <div className="w-16 h-20 rounded-lg border border-slate-300 bg-white overflow-hidden shrink-0 flex items-center justify-center">
-            {effectivePhotoUrl ? (
-              <img
-                src={effectivePhotoUrl}
-                alt={result.studentName}
-                referrerPolicy="no-referrer"
-                className="w-full h-full object-cover"
-              />
-            ) : (
-              <span className="text-[10px] font-bold text-slate-400 text-center px-1">
-                Photo
-              </span>
-            )}
-          </div>
-        )}
-
-        <div className="grid grid-cols-2 gap-x-4 gap-y-1.5 flex-1">
-          <div className={t.showRollReg ? '' : 'col-span-2'}>
-            <span className="text-slate-500 block text-[10px] uppercase tracking-wider">
-              <InlineEditable
-                value={L.candidateNameLabel}
-                isEditMode={isInlineEditMode}
-                onCommit={(v) => onUpdateLabel?.('candidateNameLabel', v)}
-              />
-            </span>
-            <span className="font-bold text-sm text-slate-900 block leading-snug">
-              {result.studentName}
-            </span>
-            {t.showBanglaName && effectiveBanglaName && (
-              <span className="text-[11px] text-slate-600 block">
-                {effectiveBanglaName}
-              </span>
-            )}
-          </div>
-
-          {t.showRollReg && (
-            <div>
-              <span className="text-slate-500 block text-[10px] uppercase tracking-wider">
-                <InlineEditable
-                  value={L.rollRegLabel}
-                  isEditMode={isInlineEditMode}
-                  onCommit={(v) => onUpdateLabel?.('rollRegLabel', v)}
-                />
-              </span>
-              <span
-                className="font-bold font-mono text-sm block tabular-nums"
-                style={{ color: t.accentColor }}
-              >
-                <InlineEditable
-                  value={L.rollPrefix}
-                  isEditMode={isInlineEditMode}
-                  onCommit={(v) => onUpdateLabel?.('rollPrefix', v)}
-                />
-                {result.rollNumber}
-              </span>
-              <span className="text-[10px] font-mono text-slate-600 block tabular-nums">
-                <InlineEditable
-                  value={L.regPrefix}
-                  isEditMode={isInlineEditMode}
-                  onCommit={(v) => onUpdateLabel?.('regPrefix', v)}
-                />{' '}
-                {result.registrationNumber || '—'}
-              </span>
-            </div>
-          )}
-
-          {t.showFatherMother && (
-            <>
-              <div>
-                <span className="text-slate-500 block text-[10px] uppercase tracking-wider">
-                  <InlineEditable
-                    value={L.fatherNameLabel}
-                    isEditMode={isInlineEditMode}
-                    onCommit={(v) => onUpdateLabel?.('fatherNameLabel', v)}
-                  />
-                </span>
-                <span className="font-medium text-slate-800">{result.fatherName || '—'}</span>
-              </div>
-              <div>
-                <span className="text-slate-500 block text-[10px] uppercase tracking-wider">
-                  <InlineEditable
-                    value={L.motherNameLabel}
-                    isEditMode={isInlineEditMode}
-                    onCommit={(v) => onUpdateLabel?.('motherNameLabel', v)}
-                  />
-                </span>
-                <span className="font-medium text-slate-800">{result.motherName || '—'}</span>
-              </div>
-            </>
-          )}
-
-          {t.showClassSectionGroup && (
-            <>
-              <div>
-                <span className="text-slate-500 block text-[10px] uppercase tracking-wider">
-                  <InlineEditable
-                    value={L.classSectionLabel}
-                    isEditMode={isInlineEditMode}
-                    onCommit={(v) => onUpdateLabel?.('classSectionLabel', v)}
-                  />
-                </span>
-                <span className="font-semibold text-slate-900">
-                  {result.className} —{' '}
-                  {result.sectionName === 'Common' ? 'Combined Cohort' : result.sectionName}
-                </span>
-              </div>
-              <div>
-                <span className="text-slate-500 block text-[10px] uppercase tracking-wider">
-                  <InlineEditable
-                    value={L.groupShiftLabel}
-                    isEditMode={isInlineEditMode}
-                    onCommit={(v) => onUpdateLabel?.('groupShiftLabel', v)}
-                  />
-                </span>
-                <span className="font-semibold text-slate-900">
-                  {result.group} ({result.shift})
-                </span>
-              </div>
-            </>
-          )}
-
-          {t.showSystemId && (
-            <div>
-              <span className="text-slate-500 block text-[10px] uppercase tracking-wider">
-                <InlineEditable
-                  value={L.studentIdLabel}
-                  isEditMode={isInlineEditMode}
-                  onCommit={(v) => onUpdateLabel?.('studentIdLabel', v)}
-                />
-              </span>
-              <span className="font-mono font-semibold text-slate-800 tabular-nums">
-                {result.systemId}
-              </span>
-            </div>
-          )}
-
-          {t.showDateOfBirth && (
-            <div>
-              <span className="text-slate-500 block text-[10px] uppercase tracking-wider">
-                <InlineEditable
-                  value={L.dobLabel}
-                  isEditMode={isInlineEditMode}
-                  onCommit={(v) => onUpdateLabel?.('dobLabel', v)}
-                />
-              </span>
-              <span className="font-mono font-semibold text-slate-800 tabular-nums">
-                {formatDateDDMMYYYY(effectiveDob)}
-              </span>
-            </div>
-          )}
-
-          {gridCustomFields.map((field) => (
-            <div key={field.id}>
-              <span className="text-slate-500 block text-[10px] uppercase tracking-wider">
-                {field.label}
-              </span>
-              <span className="font-semibold text-slate-900">
-                {getCustomFieldValue(field.id, field.defaultValue)}
-              </span>
-            </div>
-          ))}
-        </div>
-      </div>
-
-      {t.showGradingScale && (
-        <div
-          className={`${
-            t.sideBySideBioAndScale ? 'sm:col-span-4' : 'w-full'
-          } bg-slate-50/85 p-2.5 rounded-xl border border-slate-200 text-[10px]`}
-        >
-          <span
-            className="font-bold text-center block uppercase text-[9px] mb-1 tracking-wider"
-            style={{ color: t.accentColor }}
-          >
-            <InlineEditable
-              value={L.gradingScaleTitle}
-              isEditMode={isInlineEditMode}
-              onCommit={(v) => onUpdateLabel?.('gradingScaleTitle', v)}
-            />
-          </span>
-          <div className="grid grid-cols-3 gap-0.5 text-center font-mono tabular-nums">
-            <span className="font-semibold">80–100</span><span>A+</span><span className="font-bold">5.0</span>
-            <span className="font-semibold">70–79</span><span>A</span><span className="font-bold">4.0</span>
-            <span className="font-semibold">60–69</span><span>A-</span><span className="font-bold">3.5</span>
-            <span className="font-semibold">50–59</span><span>B</span><span className="font-bold">3.0</span>
-            <span className="font-semibold">40–49</span><span>C</span><span className="font-bold">2.0</span>
-            <span className="font-semibold">33–39</span><span>D</span><span className="font-bold">1.0</span>
-            <span className="font-semibold text-red-600">0–32</span>
-            <span className="text-red-600 font-bold">F</span>
-            <span className="text-red-600 font-bold">0.0</span>
-          </div>
-        </div>
-      )}
+      {renderCandidateBioCard(false)}
+      {renderGradingScaleCard(false)}
     </div>
   );
 
@@ -952,8 +1641,9 @@ export default function MarksheetDocument({
         <thead>
           <tr className="bg-slate-100 text-slate-900 font-bold text-center">
             {t.showSubjectCode && (
-              <th className={`${rowPy} px-2 border border-slate-300 text-left w-16`}>
+              <th className={`${rowPy} px-2 border border-slate-300 text-left w-14`}>
                 <InlineEditable
+                  {...editableBindings('codeColLabel')}
                   value={L.codeColLabel}
                   isEditMode={isInlineEditMode}
                   onCommit={(v) => onUpdateLabel?.('codeColLabel', v)}
@@ -962,6 +1652,7 @@ export default function MarksheetDocument({
             )}
             <th className={`${rowPy} px-2 border border-slate-300 text-left`}>
               <InlineEditable
+                {...editableBindings('subjectColLabel')}
                 value={L.subjectColLabel}
                 isEditMode={isInlineEditMode}
                 onCommit={(v) => onUpdateLabel?.('subjectColLabel', v)}
@@ -970,6 +1661,7 @@ export default function MarksheetDocument({
             {t.showFullMarksCol && (
               <th className={`${rowPy} px-1.5 border border-slate-300`}>
                 <InlineEditable
+                  {...editableBindings('fullColLabel')}
                   value={L.fullColLabel}
                   isEditMode={isInlineEditMode}
                   onCommit={(v) => onUpdateLabel?.('fullColLabel', v)}
@@ -979,6 +1671,7 @@ export default function MarksheetDocument({
             {t.showPassMarksCol && (
               <th className={`${rowPy} px-1.5 border border-slate-300`}>
                 <InlineEditable
+                  {...editableBindings('passColLabel')}
                   value={L.passColLabel}
                   isEditMode={isInlineEditMode}
                   onCommit={(v) => onUpdateLabel?.('passColLabel', v)}
@@ -988,6 +1681,7 @@ export default function MarksheetDocument({
             {ctActive && (
               <th className={`${rowPy} px-1.5 border border-slate-300 bg-amber-50 text-amber-900`}>
                 <InlineEditable
+                  {...editableBindings('ctColLabel')}
                   value={L.ctColLabel}
                   isEditMode={isInlineEditMode}
                   onCommit={(v) => onUpdateLabel?.('ctColLabel', v)}
@@ -997,6 +1691,7 @@ export default function MarksheetDocument({
             {showCqCol && (
               <th className={`${rowPy} px-1.5 border border-slate-300`}>
                 <InlineEditable
+                  {...editableBindings('cqColLabel')}
                   value={L.cqColLabel}
                   isEditMode={isInlineEditMode}
                   onCommit={(v) => onUpdateLabel?.('cqColLabel', v)}
@@ -1006,6 +1701,7 @@ export default function MarksheetDocument({
             {showMcqCol && (
               <th className={`${rowPy} px-1.5 border border-slate-300`}>
                 <InlineEditable
+                  {...editableBindings('mcqColLabel')}
                   value={L.mcqColLabel}
                   isEditMode={isInlineEditMode}
                   onCommit={(v) => onUpdateLabel?.('mcqColLabel', v)}
@@ -1015,6 +1711,7 @@ export default function MarksheetDocument({
             {showPracCol && (
               <th className={`${rowPy} px-1.5 border border-slate-300`}>
                 <InlineEditable
+                  {...editableBindings('pracColLabel')}
                   value={L.pracColLabel}
                   isEditMode={isInlineEditMode}
                   onCommit={(v) => onUpdateLabel?.('pracColLabel', v)}
@@ -1031,6 +1728,7 @@ export default function MarksheetDocument({
             ))}
             <th className={`${rowPy} px-1.5 border border-slate-300 font-bold`}>
               <InlineEditable
+                {...editableBindings('totalColLabel')}
                 value={L.totalColLabel}
                 isEditMode={isInlineEditMode}
                 onCommit={(v) => onUpdateLabel?.('totalColLabel', v)}
@@ -1039,6 +1737,7 @@ export default function MarksheetDocument({
             {t.showGradePointCol && (
               <th className={`${rowPy} px-1.5 border border-slate-300`}>
                 <InlineEditable
+                  {...editableBindings('gpColLabel')}
                   value={L.gpColLabel}
                   isEditMode={isInlineEditMode}
                   onCommit={(v) => onUpdateLabel?.('gpColLabel', v)}
@@ -1047,6 +1746,7 @@ export default function MarksheetDocument({
             )}
             <th className={`${rowPy} px-1.5 border border-slate-300 font-bold`}>
               <InlineEditable
+                {...editableBindings('gradeColLabel')}
                 value={L.gradeColLabel}
                 isEditMode={isInlineEditMode}
                 onCommit={(v) => onUpdateLabel?.('gradeColLabel', v)}
@@ -1092,6 +1792,7 @@ export default function MarksheetDocument({
                         }}
                       >
                         <InlineEditable
+                          {...editableBindings('fourthBadgeLabel')}
                           value={L.fourthBadgeLabel}
                           isEditMode={isInlineEditMode}
                           onCommit={(v) => onUpdateLabel?.('fourthBadgeLabel', v)}
@@ -1216,16 +1917,17 @@ export default function MarksheetDocument({
     </div>
   );
 
-  const renderSummarySection = () => (
+  const renderSummarySection = (stackedVertical = false) => (
     <div
       key="summary"
-      className={`p-3 bg-slate-50/90 rounded-xl border border-slate-200 text-xs grid grid-cols-1 ${
-        t.showMeritRank ? 'md:grid-cols-3' : 'md:grid-cols-2'
-      } gap-3 relative`}
+      className={`${stackedVertical ? 'p-2.5 space-y-2' : 'p-3 grid grid-cols-1 gap-3'} ${
+        !stackedVertical ? (t.showMeritRank ? 'md:grid-cols-3' : 'md:grid-cols-2') : ''
+      } bg-slate-50/90 rounded-xl border border-slate-200 text-xs relative`}
     >
-      <div className="space-y-1">
+      <div className="space-y-0.5">
         <span className="text-[10px] text-slate-500 font-semibold uppercase block">
           <InlineEditable
+            {...editableBindings('aggregateTitle')}
             value={L.aggregateTitle}
             isEditMode={isInlineEditMode}
             onCommit={(v) => onUpdateLabel?.('aggregateTitle', v)}
@@ -1234,6 +1936,7 @@ export default function MarksheetDocument({
         <div className="font-mono text-sm font-bold text-slate-900 tabular-nums">
           {result.totalMarksObtained} / {result.totalFullMarks}{' '}
           <InlineEditable
+            {...editableBindings('marksUnitLabel')}
             value={L.marksUnitLabel}
             isEditMode={isInlineEditMode}
             onCommit={(v) => onUpdateLabel?.('marksUnitLabel', v)}
@@ -1241,6 +1944,7 @@ export default function MarksheetDocument({
         </div>
         <div className="text-[11px] text-slate-600 font-mono tabular-nums">
           <InlineEditable
+            {...editableBindings('scoreRatioLabel')}
             value={L.scoreRatioLabel}
             isEditMode={isInlineEditMode}
             onCommit={(v) => onUpdateLabel?.('scoreRatioLabel', v)}
@@ -1251,9 +1955,16 @@ export default function MarksheetDocument({
         </div>
       </div>
 
-      <div className="space-y-1 border-y md:border-y-0 md:border-l border-slate-200 md:pl-3 py-2 md:py-0">
+      <div
+        className={`space-y-0.5 ${
+          stackedVertical
+            ? 'border-t border-slate-200 pt-2'
+            : 'border-y md:border-y-0 md:border-l border-slate-200 md:pl-3 py-2 md:py-0'
+        }`}
+      >
         <span className="text-[10px] text-slate-500 font-semibold uppercase block">
           <InlineEditable
+            {...editableBindings('gpaTitle')}
             value={L.gpaTitle}
             isEditMode={isInlineEditMode}
             onCommit={(v) => onUpdateLabel?.('gpaTitle', v)}
@@ -1274,6 +1985,7 @@ export default function MarksheetDocument({
             }`}
           >
             <InlineEditable
+              {...editableBindings('gradePrefixLabel')}
               value={L.gradePrefixLabel}
               isEditMode={isInlineEditMode}
               onCommit={(v) => onUpdateLabel?.('gradePrefixLabel', v)}
@@ -1284,12 +1996,14 @@ export default function MarksheetDocument({
         {t.showCoreGpaAndBonus && (
           <div className="text-[10px] font-mono text-slate-600 tabular-nums">
             <InlineEditable
+              {...editableBindings('coreGpaLabel')}
               value={L.coreGpaLabel}
               isEditMode={isInlineEditMode}
               onCommit={(v) => onUpdateLabel?.('coreGpaLabel', v)}
             />{' '}
             <strong>{result.gpaWithoutFourth.toFixed(2)}</strong> &bull;{' '}
             <InlineEditable
+              {...editableBindings('fourthBonusLabel')}
               value={L.fourthBonusLabel}
               isEditMode={isInlineEditMode}
               onCommit={(v) => onUpdateLabel?.('fourthBonusLabel', v)}
@@ -1300,9 +2014,16 @@ export default function MarksheetDocument({
       </div>
 
       {t.showMeritRank && (
-        <div className="space-y-1 border-t md:border-t-0 md:border-l border-slate-200 md:pl-3 pt-2 md:pt-0">
+        <div
+          className={`space-y-1 ${
+            stackedVertical
+              ? 'border-t border-slate-200 pt-2'
+              : 'border-t md:border-t-0 md:border-l border-slate-200 md:pl-3 pt-2 md:pt-0'
+          }`}
+        >
           <span className="text-[10px] text-slate-500 font-semibold uppercase block">
             <InlineEditable
+              {...editableBindings('meritTitle')}
               value={L.meritTitle}
               isEditMode={isInlineEditMode}
               onCommit={(v) => onUpdateLabel?.('meritTitle', v)}
@@ -1317,6 +2038,7 @@ export default function MarksheetDocument({
               }}
             >
               <InlineEditable
+                {...editableBindings('classRankLabel')}
                 value={L.classRankLabel}
                 isEditMode={isInlineEditMode}
                 onCommit={(v) => onUpdateLabel?.('classRankLabel', v)}
@@ -1325,6 +2047,7 @@ export default function MarksheetDocument({
             </span>
             <span className="px-2 py-0.5 rounded bg-slate-200/70 text-slate-700 font-bold font-mono text-[11px] tabular-nums">
               <InlineEditable
+                {...editableBindings('sectionRankLabel')}
                 value={L.sectionRankLabel}
                 isEditMode={isInlineEditMode}
                 onCommit={(v) => onUpdateLabel?.('sectionRankLabel', v)}
@@ -1337,6 +2060,7 @@ export default function MarksheetDocument({
               <span className="text-emerald-800 font-bold text-[11px] uppercase tracking-wider inline-flex items-center gap-1">
                 <CheckCircle2 className="w-3.5 h-3.5 shrink-0" />
                 <InlineEditable
+                  {...editableBindings('passedStatusText')}
                   value={meta.promotionStatus || L.passedStatusText}
                   isEditMode={isInlineEditMode && !meta.promotionStatus}
                   onCommit={(v) => onUpdateLabel?.('passedStatusText', v)}
@@ -1363,9 +2087,10 @@ export default function MarksheetDocument({
       >
         {t.showAttendanceConduct && (
           <>
-            <div className="flex flex-wrap items-center justify-between gap-2 text-[11px] font-mono text-slate-600 border-b border-slate-200 pb-1.5 tabular-nums">
+            <div className="flex flex-wrap items-center justify-between gap-1.5 text-[11px] font-mono text-slate-600 border-b border-slate-200 pb-1.5 tabular-nums">
               <span>
                 <InlineEditable
+                  {...editableBindings('workingDaysLabel')}
                   value={L.workingDaysLabel}
                   isEditMode={isInlineEditMode}
                   onCommit={(v) => onUpdateLabel?.('workingDaysLabel', v)}
@@ -1375,6 +2100,7 @@ export default function MarksheetDocument({
                 </strong>{' '}
                 &bull;{' '}
                 <InlineEditable
+                  {...editableBindings('daysPresentLabel')}
                   value={L.daysPresentLabel}
                   isEditMode={isInlineEditMode}
                   onCommit={(v) => onUpdateLabel?.('daysPresentLabel', v)}
@@ -1386,6 +2112,7 @@ export default function MarksheetDocument({
               </span>
               <span>
                 <InlineEditable
+                  {...editableBindings('conductLabel')}
                   value={L.conductLabel}
                   isEditMode={isInlineEditMode}
                   onCommit={(v) => onUpdateLabel?.('conductLabel', v)}
@@ -1398,6 +2125,7 @@ export default function MarksheetDocument({
             <div>
               <span className="text-[10px] uppercase font-bold text-slate-500 tracking-wider block">
                 <InlineEditable
+                  {...editableBindings('remarkTitle')}
                   value={L.remarkTitle}
                   isEditMode={isInlineEditMode}
                   onCommit={(v) => onUpdateLabel?.('remarkTitle', v)}
@@ -1405,11 +2133,19 @@ export default function MarksheetDocument({
               </span>
               <p className="text-[11px] text-slate-800 italic mt-0.5">
                 <InlineEditable
+                  {...editableBindings(
+                    result.isPassed ? 'defaultPassRemark' : 'defaultFailRemark'
+                  )}
                   value={teacherRemark}
-                  isEditMode={isInlineEditMode && !meta.teacherRemark && !result.teacherRemarks}
+                  isEditMode={
+                    isInlineEditMode && !meta.teacherRemark && !result.teacherRemarks
+                  }
                   multiline
                   onCommit={(v) =>
-                    onUpdateLabel?.(result.isPassed ? 'defaultPassRemark' : 'defaultFailRemark', v)
+                    onUpdateLabel?.(
+                      result.isPassed ? 'defaultPassRemark' : 'defaultFailRemark',
+                      v
+                    )
                   }
                 />
               </p>
@@ -1434,7 +2170,7 @@ export default function MarksheetDocument({
   };
 
   const renderSignaturesSection = () => (
-    <div key="signatures" className="space-y-2.5 pt-3 relative">
+    <div key="signatures" className={`space-y-2 ${isLandscape ? 'pt-2' : 'pt-3'} relative`}>
       <div className="flex flex-wrap items-end justify-between gap-4 text-xs">
         {t.showQrVerification && (
           <div className="flex items-center gap-2.5">
@@ -1442,22 +2178,30 @@ export default function MarksheetDocument({
               <img
                 src={qrCodeDataUrl}
                 alt="Verification QR"
-                className="w-14 h-14 border border-slate-200 p-0.5 bg-white shadow-xs"
+                className={`${
+                  isLandscape ? 'w-12 h-12' : 'w-14 h-14'
+                } border border-slate-200 p-0.5 bg-white shadow-xs`}
               />
             ) : (
-              <div className="w-14 h-14 border border-slate-200 bg-slate-50 flex items-center justify-center text-slate-400">
+              <div
+                className={`${
+                  isLandscape ? 'w-12 h-12' : 'w-14 h-14'
+                } border border-slate-200 bg-slate-50 flex items-center justify-center text-slate-400`}
+              >
                 <QrCode className="w-6 h-6" />
               </div>
             )}
-            <div className="text-[9px] font-mono text-slate-500 max-w-[155px]">
+            <div className="text-[9px] font-mono text-slate-500 max-w-[165px]">
               <span className="font-bold block text-slate-800">
                 <InlineEditable
+                  {...editableBindings('qrTitle')}
                   value={L.qrTitle}
                   isEditMode={isInlineEditMode}
                   onCommit={(v) => onUpdateLabel?.('qrTitle', v)}
                 />
               </span>
               <InlineEditable
+                {...editableBindings('qrSubtitle')}
                 value={L.qrSubtitle}
                 isEditMode={isInlineEditMode}
                 multiline
@@ -1470,13 +2214,17 @@ export default function MarksheetDocument({
         <div className="flex flex-1 justify-around items-end pl-2 gap-4">
           {signatories.map((sig) => (
             <div key={sig.id} className="text-center min-w-[100px]">
-              <div className="w-28 mx-auto border-b border-slate-900 mb-1 h-8 flex items-end justify-center">
+              <div
+                className={`w-28 mx-auto border-b border-slate-900 mb-1 ${
+                  isLandscape ? 'h-7' : 'h-8'
+                } flex items-end justify-center`}
+              >
                 {sig.signatureImgUrl ? (
                   <img
                     src={sig.signatureImgUrl}
                     alt={sig.name}
                     referrerPolicy="no-referrer"
-                    className="max-h-8 w-auto object-contain mb-0.5"
+                    className="max-h-7 w-auto object-contain mb-0.5"
                   />
                 ) : (
                   <span className="font-serif italic text-[11px] text-slate-700 pb-0.5">
@@ -1495,9 +2243,10 @@ export default function MarksheetDocument({
         </div>
       </div>
 
-      {(L.footerNoteText || isInlineEditMode) && (
-        <div className="pt-1.5 border-t border-slate-200/80 text-center text-[9px] text-slate-500">
+      {(L.footerNoteText || isInlineEditMode) && !t.labelStyles.footerNoteText?.hidden && (
+        <div className="pt-1 border-t border-slate-200/80 text-center text-[9px] text-slate-500">
           <InlineEditable
+            {...editableBindings('footerNoteText')}
             value={L.footerNoteText}
             placeholder="Optional bottom footer disclaimer or institution note (click to edit)"
             isEditMode={isInlineEditMode}
@@ -1529,7 +2278,7 @@ export default function MarksheetDocument({
       case 'summary':
         return (
           <React.Fragment key="summary-group">
-            {renderSummarySection()}
+            {renderSummarySection(false)}
             {renderTextBlocksForPlacement('below-summary')}
           </React.Fragment>
         );
@@ -1548,46 +2297,101 @@ export default function MarksheetDocument({
     }
   };
 
+  const assignRefs = (el: HTMLDivElement | null) => {
+    localWrapperRef.current = el;
+    if (!sheetRef) return;
+    if (typeof sheetRef === 'function') {
+      sheetRef(el);
+    } else {
+      (sheetRef as React.MutableRefObject<HTMLDivElement | null>).current = el;
+    }
+  };
+
   return (
     <div
-      ref={sheetRef}
+      ref={assignRefs}
+      data-orientation={t.orientation}
+      data-auto-fit={t.autoFitSinglePage ? 'true' : 'false'}
       style={{
         padding: `${t.pageMarginMm}mm`,
         fontSize: `${Math.round(12 * t.fontScale)}px`,
+        fontFamily: bodyFontCss,
       }}
-      className={`a4-page-container w-full max-w-[794px] bg-white text-slate-900 shadow-xl rounded-2xl border border-slate-200 relative overflow-hidden ${
-        t.fontFamily === 'serif' ? 'font-serif' : 'font-sans'
-      }`}
+      className={`a4-page-container a4-marksheet-sheet ${
+        isLandscape
+          ? 'a4-landscape w-full max-w-[1123px]'
+          : 'a4-portrait w-full max-w-[794px]'
+      } bg-white text-slate-900 shadow-xl rounded-2xl border border-slate-200 relative overflow-hidden`}
     >
-      {/* Background Watermark */}
-      {bgUrl && (
-        <div
-          className="absolute inset-0 pointer-events-none bg-center bg-no-repeat bg-contain"
-          style={{
-            backgroundImage: `url(${bgUrl})`,
-            opacity: t.watermarkOpacity,
-          }}
+      {/* Layer 1: Independent Edge-to-Edge Full-Page Background */}
+      {pageBgUrl && (
+        <img
+          src={pageBgUrl}
+          alt=""
+          referrerPolicy="no-referrer"
+          className="absolute inset-0 w-full h-full object-cover pointer-events-none select-none"
+          style={{ opacity: t.pageBackgroundOpacity }}
         />
+      )}
+
+      {/* Layer 2: Independent Centered Scaled Watermark Crest Logo */}
+      {watermarkLogoUrl && (
+        <div className="absolute inset-0 pointer-events-none select-none flex items-center justify-center overflow-hidden">
+          <img
+            src={watermarkLogoUrl}
+            alt=""
+            referrerPolicy="no-referrer"
+            className="object-contain"
+            style={{
+              width: `${t.watermarkScalePercent}%`,
+              maxHeight: `${t.watermarkScalePercent}%`,
+              opacity: t.watermarkOpacity,
+            }}
+          />
+        </div>
       )}
 
       {/* Outer Ornamental Frame */}
       <div
-        className={`${densityPadding} ${sectionGap} relative`}
+        className={`ms-frame-inner ${densityPadding} ${sectionGap} relative`}
         style={frameDynamicStyle}
       >
-        {t.borderStyle === 'official-seal' &&
-          stationeryMode === 'full-design' &&
-          t.borderWidthPx > 0 && (
-            <div
-              className="pointer-events-none absolute inset-1.5 border"
-              style={{
-                borderColor: `${t.accentColor}35`,
-                borderRadius: `${Math.max(0, t.borderRadiusPx - 4)}px`,
-              }}
-            />
-          )}
+        {stationeryMode === 'full-design' && (
+          <BorderFrameDecorations
+            borderStyle={t.borderStyle}
+            accentColor={t.accentColor}
+            borderRadiusPx={t.borderRadiusPx}
+          />
+        )}
 
-        {t.sectionOrder.map((secId) => renderSectionById(secId))}
+        {isLandscape ? (
+          <div className="space-y-2.5">
+            {/* Top Full-Span Institutional Header */}
+            {renderHeaderSection()}
+            {renderTextBlocksForPlacement('below-header')}
+
+            {/* Smart 2-Column 8:4 Split Grid */}
+            <div className="grid grid-cols-12 gap-3.5 items-start">
+              <div className="col-span-8 space-y-2.5 min-w-0">
+                {renderCandidateBioCard(true)}
+                {renderTextBlocksForPlacement('above-table')}
+                {renderTableSection()}
+              </div>
+              <div className="col-span-4 space-y-2.5 min-w-0">
+                {renderGradingScaleCard(true)}
+                {renderSummarySection(true)}
+                {renderAttendanceSection()}
+                {renderTextBlocksForPlacement('below-summary')}
+              </div>
+            </div>
+
+            {/* Bottom Full-Span Footer Zone */}
+            {renderTextBlocksForPlacement('above-signatures')}
+            {renderSignaturesSection()}
+          </div>
+        ) : (
+          t.sectionOrder.map((secId) => renderSectionById(secId))
+        )}
       </div>
     </div>
   );

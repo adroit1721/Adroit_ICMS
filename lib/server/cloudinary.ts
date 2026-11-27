@@ -184,6 +184,8 @@ export function collectExamMediaIds(exam: Partial<Exam>): Set<string> {
     if (id) ids.add(id);
   };
   add(exam.marksheetBgPublicId, exam.marksheetBgUrl);
+  add(exam.marksheetTemplate?.pageBackgroundPublicId, exam.marksheetTemplate?.pageBackgroundUrl);
+  add(exam.marksheetTemplate?.watermarkLogoPublicId, exam.marksheetTemplate?.watermarkLogoUrl);
   for (const sig of exam.signatories || []) {
     add(sig.signaturePublicId, sig.signatureImgUrl);
   }
