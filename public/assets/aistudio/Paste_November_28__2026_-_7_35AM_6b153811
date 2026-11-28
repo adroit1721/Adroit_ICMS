@@ -1,0 +1,250 @@
+07:32:04.003 Running build in Las Vegas, USA (West) – las1
+07:32:04.004 Build machine configuration: 2 cores, 8 GB
+07:32:04.294 Cloning github.com/adroit1721/Adroit_ICMS (Branch: main, Commit: 98483c8)
+07:32:04.295 Previous build caches not available.
+07:32:05.409 Cloning completed: 1.114s
+07:32:06.117 Running "vercel build"
+07:32:06.125 Vercel CLI 66.6.0
+07:32:06.463 Installing dependencies...
+07:32:07.265 npm warn Unknown env config "cache-dir". This will stop working in the next major version of npm. See `npm help npmrc` for supported config options.
+07:32:13.481 npm warn EBADENGINE Unsupported engine {
+07:32:13.481 npm warn EBADENGINE   package: 'superstatic@10.0.0',
+07:32:13.481 npm warn EBADENGINE   required: { node: '20 || 22 || 24' },
+07:32:13.482 npm warn EBADENGINE   current: { node: 'v26.13.1', npm: '11.20.0' }
+07:32:13.482 npm warn EBADENGINE }
+07:32:27.965 npm warn deprecated eslint@9.39.1: This version is no longer supported. Please see https://eslint.org/version-support for other options.
+07:34:00.221 
+07:34:00.221 added 1006 packages in 2m
+07:34:00.222 
+07:34:00.223 239 packages are looking for funding
+07:34:00.223   run `npm fund` for details
+07:34:00.224 npm warn install-scripts 5 packages have install scripts not yet covered by allowScripts:
+07:34:00.224 npm warn install-scripts   @google/genai@2.32.0 (preinstall: echo 'preinstall: no-op')
+07:34:00.225 npm warn install-scripts   @tailwindcss/oxide@4.1.11 (postinstall: node ./scripts/install.js)
+07:34:00.225 npm warn install-scripts   protobufjs@7.6.6 (postinstall: node scripts/postinstall)
+07:34:00.225 npm warn install-scripts   re2@1.27.1 (install: install-from-cache --artifact build/Release/re2.node --host-var RE2_DOWNLOAD_MIRROR --skip-path-var RE2_DOWNLOAD_SKIP_PATH --skip-ver-var RE2_DOWNLOAD_SKIP_VER --force-build-var RE2_DOWNLOAD_FORCE_BUILD || node-gyp -j max rebuild)
+07:34:00.226 npm warn install-scripts   core-js@3.51.0 (postinstall: node -e "try{require('./postinstall')}catch(e){}")
+07:34:00.226 npm warn install-scripts
+07:34:00.226 npm warn install-scripts Run `npm install-scripts ls` to review, or `npm install-scripts approve <pkg>` to allow.
+07:34:00.270 Detected Next.js version: 15.5.29
+07:34:00.278 Running "npm run build"
+07:34:00.364 npm warn Unknown env config "cache-dir". This will stop working in the next major version of npm. See `npm help npmrc` for supported config options.
+07:34:00.378 
+07:34:00.378 > ai-studio-applet@0.1.0 build
+07:34:00.378 > NODE_ENV=production next build
+07:34:00.378 
+07:34:01.100 Attention: Next.js now collects completely anonymous telemetry regarding usage.
+07:34:01.100 This information is used to shape Next.js' roadmap and prioritize features.
+07:34:01.101 You can learn more, including how to opt-out if you'd not like to participate in this anonymous program, by visiting the following URL:
+07:34:01.102 https://nextjs.org/telemetry
+07:34:01.102 
+07:34:01.182    ▲ Next.js 15.5.29
+07:34:01.184 
+07:34:01.227    Creating an optimized production build ...
+07:34:11.335 (node:2431) [DEP0205] DeprecationWarning: `module.register()` is deprecated. Use `module.registerHooks()` instead.
+07:34:11.335 (Use `node --trace-deprecation ...` to show where the warning was created)
+07:34:15.244  ✓ Compiled successfully in 13.9s
+07:34:15.246    Linting and checking validity of types ...
+07:34:45.197 
+07:34:45.197 Failed to compile.
+07:34:45.198 
+07:34:45.198 ./app/about/page.tsx
+07:34:45.198 51:17  Warning: Using `<img>` could result in slower LCP and higher bandwidth. Consider using `<Image />` from `next/image` or a custom image loader to automatically optimize images. This may incur additional usage or cost from your provider. See: https://nextjs.org/docs/messages/no-img-element  @next/next/no-img-element
+07:34:45.198 167:17  Warning: Using `<img>` could result in slower LCP and higher bandwidth. Consider using `<Image />` from `next/image` or a custom image loader to automatically optimize images. This may incur additional usage or cost from your provider. See: https://nextjs.org/docs/messages/no-img-element  @next/next/no-img-element
+07:34:45.198 
+07:34:45.198 ./app/academics/page.tsx
+07:34:45.198 209:19  Warning: Using `<img>` could result in slower LCP and higher bandwidth. Consider using `<Image />` from `next/image` or a custom image loader to automatically optimize images. This may incur additional usage or cost from your provider. See: https://nextjs.org/docs/messages/no-img-element  @next/next/no-img-element
+07:34:45.198 
+07:34:45.198 ./app/admissions/page.tsx
+07:34:45.198 119:7  Error: Error: Calling setState synchronously within an effect can trigger cascading renders
+07:34:45.198 
+07:34:45.198 Effects are intended to synchronize state between React and external systems such as manually updating the DOM, state management libraries, or other platform APIs. In general, the body of an effect should do one or both of the following:
+07:34:45.198 * Update external systems with the latest state from React.
+07:34:45.198 * Subscribe for updates from some external system, calling setState in a callback function when external state changes.
+07:34:45.198 
+07:34:45.198 Calling setState synchronously within an effect body causes cascading renders that can hurt performance, and is not recommended. (https://react.dev/learn/you-might-not-need-an-effect).
+07:34:45.198 
+07:34:45.198 /vercel/path0/app/admissions/page.tsx:119:7
+07:34:45.198   117 |     const mode = params.get('mode');
+07:34:45.202   118 |     if (code) {
+07:34:45.203 > 119 |       setPortalMode('track');
+07:34:45.203       |       ^^^^^^^^^^^^^ Avoid calling setState() directly within an effect
+07:34:45.203   120 |       setTrackCode(code.toUpperCase());
+07:34:45.203   121 |     } else if (mode === 're-admission') {
+07:34:45.203   122 |       setPortalMode('re-admission');  react-hooks/set-state-in-effect
+07:34:45.203 
+07:34:45.203 ./app/custom/admin/login/page.tsx
+07:34:45.203 134:13  Warning: Using `<img>` could result in slower LCP and higher bandwidth. Consider using `<Image />` from `next/image` or a custom image loader to automatically optimize images. This may incur additional usage or cost from your provider. See: https://nextjs.org/docs/messages/no-img-element  @next/next/no-img-element
+07:34:45.203 
+07:34:45.203 ./app/page.tsx
+07:34:45.203 93:21  Warning: Using `<img>` could result in slower LCP and higher bandwidth. Consider using `<Image />` from `next/image` or a custom image loader to automatically optimize images. This may incur additional usage or cost from your provider. See: https://nextjs.org/docs/messages/no-img-element  @next/next/no-img-element
+07:34:45.203 455:25  Warning: Using `<img>` could result in slower LCP and higher bandwidth. Consider using `<Image />` from `next/image` or a custom image loader to automatically optimize images. This may incur additional usage or cost from your provider. See: https://nextjs.org/docs/messages/no-img-element  @next/next/no-img-element
+07:34:45.203 538:25  Warning: Using `<img>` could result in slower LCP and higher bandwidth. Consider using `<Image />` from `next/image` or a custom image loader to automatically optimize images. This may incur additional usage or cost from your provider. See: https://nextjs.org/docs/messages/no-img-element  @next/next/no-img-element
+07:34:45.203 699:19  Warning: Using `<img>` could result in slower LCP and higher bandwidth. Consider using `<Image />` from `next/image` or a custom image loader to automatically optimize images. This may incur additional usage or cost from your provider. See: https://nextjs.org/docs/messages/no-img-element  @next/next/no-img-element
+07:34:45.203 
+07:34:45.203 ./app/student/login/page.tsx
+07:34:45.203 80:13  Warning: Using `<img>` could result in slower LCP and higher bandwidth. Consider using `<Image />` from `next/image` or a custom image loader to automatically optimize images. This may incur additional usage or cost from your provider. See: https://nextjs.org/docs/messages/no-img-element  @next/next/no-img-element
+07:34:45.203 
+07:34:45.203 ./app/student/portal/page.tsx
+07:34:45.203 138:6  Warning: React Hook useEffect has a missing dependency: 'compiledResult'. Either include it or remove the dependency array.  react-hooks/exhaustive-deps
+07:34:45.203 340:11  Warning: Using `<img>` could result in slower LCP and higher bandwidth. Consider using `<Image />` from `next/image` or a custom image loader to automatically optimize images. This may incur additional usage or cost from your provider. See: https://nextjs.org/docs/messages/no-img-element  @next/next/no-img-element
+07:34:45.203 358:13  Warning: Using `<img>` could result in slower LCP and higher bandwidth. Consider using `<Image />` from `next/image` or a custom image loader to automatically optimize images. This may incur additional usage or cost from your provider. See: https://nextjs.org/docs/messages/no-img-element  @next/next/no-img-element
+07:34:45.203 
+07:34:45.203 ./app/teacher/dashboard/page.tsx
+07:34:45.203 96:13  Warning: Using `<img>` could result in slower LCP and higher bandwidth. Consider using `<Image />` from `next/image` or a custom image loader to automatically optimize images. This may incur additional usage or cost from your provider. See: https://nextjs.org/docs/messages/no-img-element  @next/next/no-img-element
+07:34:45.203 968:13  Warning: Using `<img>` could result in slower LCP and higher bandwidth. Consider using `<Image />` from `next/image` or a custom image loader to automatically optimize images. This may incur additional usage or cost from your provider. See: https://nextjs.org/docs/messages/no-img-element  @next/next/no-img-element
+07:34:45.203 
+07:34:45.203 ./app/teacher/login/page.tsx
+07:34:45.203 72:13  Warning: Using `<img>` could result in slower LCP and higher bandwidth. Consider using `<Image />` from `next/image` or a custom image loader to automatically optimize images. This may incur additional usage or cost from your provider. See: https://nextjs.org/docs/messages/no-img-element  @next/next/no-img-element
+07:34:45.203 
+07:34:45.203 ./components/admin/AdminHeader.tsx
+07:34:45.203 126:13  Warning: Using `<img>` could result in slower LCP and higher bandwidth. Consider using `<Image />` from `next/image` or a custom image loader to automatically optimize images. This may incur additional usage or cost from your provider. See: https://nextjs.org/docs/messages/no-img-element  @next/next/no-img-element
+07:34:45.204 
+07:34:45.204 ./components/admin/AdminSidebar.tsx
+07:34:45.204 81:17  Warning: Using `<img>` could result in slower LCP and higher bandwidth. Consider using `<Image />` from `next/image` or a custom image loader to automatically optimize images. This may incur additional usage or cost from your provider. See: https://nextjs.org/docs/messages/no-img-element  @next/next/no-img-element
+07:34:45.204 
+07:34:45.204 ./components/admin/CMSTab.tsx
+07:34:45.204 1051:27  Warning: Using `<img>` could result in slower LCP and higher bandwidth. Consider using `<Image />` from `next/image` or a custom image loader to automatically optimize images. This may incur additional usage or cost from your provider. See: https://nextjs.org/docs/messages/no-img-element  @next/next/no-img-element
+07:34:45.204 1393:29  Warning: Using `<img>` could result in slower LCP and higher bandwidth. Consider using `<Image />` from `next/image` or a custom image loader to automatically optimize images. This may incur additional usage or cost from your provider. See: https://nextjs.org/docs/messages/no-img-element  @next/next/no-img-element
+07:34:45.204 
+07:34:45.204 ./components/admin/DocumentsTab.tsx
+07:34:45.204 255:19  Warning: Using `<img>` could result in slower LCP and higher bandwidth. Consider using `<Image />` from `next/image` or a custom image loader to automatically optimize images. This may incur additional usage or cost from your provider. See: https://nextjs.org/docs/messages/no-img-element  @next/next/no-img-element
+07:34:45.204 268:19  Warning: Using `<img>` could result in slower LCP and higher bandwidth. Consider using `<Image />` from `next/image` or a custom image loader to automatically optimize images. This may incur additional usage or cost from your provider. See: https://nextjs.org/docs/messages/no-img-element  @next/next/no-img-element
+07:34:45.204 333:21  Warning: Using `<img>` could result in slower LCP and higher bandwidth. Consider using `<Image />` from `next/image` or a custom image loader to automatically optimize images. This may incur additional usage or cost from your provider. See: https://nextjs.org/docs/messages/no-img-element  @next/next/no-img-element
+07:34:45.204 354:19  Warning: Using `<img>` could result in slower LCP and higher bandwidth. Consider using `<Image />` from `next/image` or a custom image loader to automatically optimize images. This may incur additional usage or cost from your provider. See: https://nextjs.org/docs/messages/no-img-element  @next/next/no-img-element
+07:34:45.204 492:17  Warning: Using `<img>` could result in slower LCP and higher bandwidth. Consider using `<Image />` from `next/image` or a custom image loader to automatically optimize images. This may incur additional usage or cost from your provider. See: https://nextjs.org/docs/messages/no-img-element  @next/next/no-img-element
+07:34:45.204 536:17  Warning: Using `<img>` could result in slower LCP and higher bandwidth. Consider using `<Image />` from `next/image` or a custom image loader to automatically optimize images. This may incur additional usage or cost from your provider. See: https://nextjs.org/docs/messages/no-img-element  @next/next/no-img-element
+07:34:45.205 579:17  Warning: Using `<img>` could result in slower LCP and higher bandwidth. Consider using `<Image />` from `next/image` or a custom image loader to automatically optimize images. This may incur additional usage or cost from your provider. See: https://nextjs.org/docs/messages/no-img-element  @next/next/no-img-element
+07:34:45.205 
+07:34:45.205 ./components/admin/ExaminationsTab.tsx
+07:34:45.205 4049:21  Warning: Using `<img>` could result in slower LCP and higher bandwidth. Consider using `<Image />` from `next/image` or a custom image loader to automatically optimize images. This may incur additional usage or cost from your provider. See: https://nextjs.org/docs/messages/no-img-element  @next/next/no-img-element
+07:34:45.205 
+07:34:45.205 ./components/admin/ImageCropUpload.tsx
+07:34:45.206 226:13  Warning: Using `<img>` could result in slower LCP and higher bandwidth. Consider using `<Image />` from `next/image` or a custom image loader to automatically optimize images. This may incur additional usage or cost from your provider. See: https://nextjs.org/docs/messages/no-img-element  @next/next/no-img-element
+07:34:45.206 350:17  Warning: Using `<img>` could result in slower LCP and higher bandwidth. Consider using `<Image />` from `next/image` or a custom image loader to automatically optimize images. This may incur additional usage or cost from your provider. See: https://nextjs.org/docs/messages/no-img-element  @next/next/no-img-element
+07:34:45.206 
+07:34:45.206 ./components/admin/MediaUploadInput.tsx
+07:34:45.206 130:13  Warning: Using `<img>` could result in slower LCP and higher bandwidth. Consider using `<Image />` from `next/image` or a custom image loader to automatically optimize images. This may incur additional usage or cost from your provider. See: https://nextjs.org/docs/messages/no-img-element  @next/next/no-img-element
+07:34:45.206 
+07:34:45.206 ./components/admin/StudentAdmissionFormPrintModal.tsx
+07:34:45.207 126:15  Warning: Using `<img>` could result in slower LCP and higher bandwidth. Consider using `<Image />` from `next/image` or a custom image loader to automatically optimize images. This may incur additional usage or cost from your provider. See: https://nextjs.org/docs/messages/no-img-element  @next/next/no-img-element
+07:34:45.207 165:15  Warning: Using `<img>` could result in slower LCP and higher bandwidth. Consider using `<Image />` from `next/image` or a custom image loader to automatically optimize images. This may incur additional usage or cost from your provider. See: https://nextjs.org/docs/messages/no-img-element  @next/next/no-img-element
+07:34:45.207 
+07:34:45.207 ./components/admin/StudentFormView.tsx
+07:34:45.207 1006:19  Warning: Using `<img>` could result in slower LCP and higher bandwidth. Consider using `<Image />` from `next/image` or a custom image loader to automatically optimize images. This may incur additional usage or cost from your provider. See: https://nextjs.org/docs/messages/no-img-element  @next/next/no-img-element
+07:34:45.207 2245:17  Warning: Using `<img>` could result in slower LCP and higher bandwidth. Consider using `<Image />` from `next/image` or a custom image loader to automatically optimize images. This may incur additional usage or cost from your provider. See: https://nextjs.org/docs/messages/no-img-element  @next/next/no-img-element
+07:34:45.207 
+07:34:45.207 ./components/admin/StudentsTab.tsx
+07:34:45.208 1054:25  Warning: Using `<img>` could result in slower LCP and higher bandwidth. Consider using `<Image />` from `next/image` or a custom image loader to automatically optimize images. This may incur additional usage or cost from your provider. See: https://nextjs.org/docs/messages/no-img-element  @next/next/no-img-element
+07:34:45.209 1118:37  Warning: Using `<img>` could result in slower LCP and higher bandwidth. Consider using `<Image />` from `next/image` or a custom image loader to automatically optimize images. This may incur additional usage or cost from your provider. See: https://nextjs.org/docs/messages/no-img-element  @next/next/no-img-element
+07:34:45.209 1130:37  Warning: Using `<img>` could result in slower LCP and higher bandwidth. Consider using `<Image />` from `next/image` or a custom image loader to automatically optimize images. This may incur additional usage or cost from your provider. See: https://nextjs.org/docs/messages/no-img-element  @next/next/no-img-element
+07:34:45.209 1827:33  Warning: Using `<img>` could result in slower LCP and higher bandwidth. Consider using `<Image />` from `next/image` or a custom image loader to automatically optimize images. This may incur additional usage or cost from your provider. See: https://nextjs.org/docs/messages/no-img-element  @next/next/no-img-element
+07:34:45.210 2052:17  Warning: Using `<img>` could result in slower LCP and higher bandwidth. Consider using `<Image />` from `next/image` or a custom image loader to automatically optimize images. This may incur additional usage or cost from your provider. See: https://nextjs.org/docs/messages/no-img-element  @next/next/no-img-element
+07:34:45.210 
+07:34:45.210 ./components/admin/TeachersTab.tsx
+07:34:45.210 931:21  Warning: Using `<img>` could result in slower LCP and higher bandwidth. Consider using `<Image />` from `next/image` or a custom image loader to automatically optimize images. This may incur additional usage or cost from your provider. See: https://nextjs.org/docs/messages/no-img-element  @next/next/no-img-element
+07:34:45.211 1020:23  Warning: Using `<img>` could result in slower LCP and higher bandwidth. Consider using `<Image />` from `next/image` or a custom image loader to automatically optimize images. This may incur additional usage or cost from your provider. See: https://nextjs.org/docs/messages/no-img-element  @next/next/no-img-element
+07:34:45.211 1199:17  Warning: Using `<img>` could result in slower LCP and higher bandwidth. Consider using `<Image />` from `next/image` or a custom image loader to automatically optimize images. This may incur additional usage or cost from your provider. See: https://nextjs.org/docs/messages/no-img-element  @next/next/no-img-element
+07:34:45.211 1279:17  Warning: Using `<img>` could result in slower LCP and higher bandwidth. Consider using `<Image />` from `next/image` or a custom image loader to automatically optimize images. This may incur additional usage or cost from your provider. See: https://nextjs.org/docs/messages/no-img-element  @next/next/no-img-element
+07:34:45.211 
+07:34:45.211 ./components/common/AdmissionApplicationSlipModal.tsx
+07:34:45.211 101:15  Warning: Using `<img>` could result in slower LCP and higher bandwidth. Consider using `<Image />` from `next/image` or a custom image loader to automatically optimize images. This may incur additional usage or cost from your provider. See: https://nextjs.org/docs/messages/no-img-element  @next/next/no-img-element
+07:34:45.211 128:15  Warning: Using `<img>` could result in slower LCP and higher bandwidth. Consider using `<Image />` from `next/image` or a custom image loader to automatically optimize images. This may incur additional usage or cost from your provider. See: https://nextjs.org/docs/messages/no-img-element  @next/next/no-img-element
+07:34:45.211 140:15  Warning: Using `<img>` could result in slower LCP and higher bandwidth. Consider using `<Image />` from `next/image` or a custom image loader to automatically optimize images. This may incur additional usage or cost from your provider. See: https://nextjs.org/docs/messages/no-img-element  @next/next/no-img-element
+07:34:45.212 
+07:34:45.212 ./components/common/DualCopyPaymentReceiptModal.tsx
+07:34:45.212 73:15  Warning: Using `<img>` could result in slower LCP and higher bandwidth. Consider using `<Image />` from `next/image` or a custom image loader to automatically optimize images. This may incur additional usage or cost from your provider. See: https://nextjs.org/docs/messages/no-img-element  @next/next/no-img-element
+07:34:45.216 118:15  Warning: Using `<img>` could result in slower LCP and higher bandwidth. Consider using `<Image />` from `next/image` or a custom image loader to automatically optimize images. This may incur additional usage or cost from your provider. See: https://nextjs.org/docs/messages/no-img-element  @next/next/no-img-element
+07:34:45.216 
+07:34:45.216 ./components/common/MarksheetDocument.tsx
+07:34:45.216 1097:13  Warning: Using `<img>` could result in slower LCP and higher bandwidth. Consider using `<Image />` from `next/image` or a custom image loader to automatically optimize images. This may incur additional usage or cost from your provider. See: https://nextjs.org/docs/messages/no-img-element  @next/next/no-img-element
+07:34:45.216 1177:17  Warning: Using `<img>` could result in slower LCP and higher bandwidth. Consider using `<Image />` from `next/image` or a custom image loader to automatically optimize images. This may incur additional usage or cost from your provider. See: https://nextjs.org/docs/messages/no-img-element  @next/next/no-img-element
+07:34:45.217 1259:15  Warning: Using `<img>` could result in slower LCP and higher bandwidth. Consider using `<Image />` from `next/image` or a custom image loader to automatically optimize images. This may incur additional usage or cost from your provider. See: https://nextjs.org/docs/messages/no-img-element  @next/next/no-img-element
+07:34:45.217 1335:11  Warning: Using `<img>` could result in slower LCP and higher bandwidth. Consider using `<Image />` from `next/image` or a custom image loader to automatically optimize images. This may incur additional usage or cost from your provider. See: https://nextjs.org/docs/messages/no-img-element  @next/next/no-img-element
+07:34:45.217 1411:13  Warning: Using `<img>` could result in slower LCP and higher bandwidth. Consider using `<Image />` from `next/image` or a custom image loader to automatically optimize images. This may incur additional usage or cost from your provider. See: https://nextjs.org/docs/messages/no-img-element  @next/next/no-img-element
+07:34:45.217 2180:15  Warning: Using `<img>` could result in slower LCP and higher bandwidth. Consider using `<Image />` from `next/image` or a custom image loader to automatically optimize images. This may incur additional usage or cost from your provider. See: https://nextjs.org/docs/messages/no-img-element  @next/next/no-img-element
+07:34:45.217 2225:19  Warning: Using `<img>` could result in slower LCP and higher bandwidth. Consider using `<Image />` from `next/image` or a custom image loader to automatically optimize images. This may incur additional usage or cost from your provider. See: https://nextjs.org/docs/messages/no-img-element  @next/next/no-img-element
+07:34:45.217 2320:9  Warning: Using `<img>` could result in slower LCP and higher bandwidth. Consider using `<Image />` from `next/image` or a custom image loader to automatically optimize images. This may incur additional usage or cost from your provider. See: https://nextjs.org/docs/messages/no-img-element  @next/next/no-img-element
+07:34:45.217 2332:11  Warning: Using `<img>` could result in slower LCP and higher bandwidth. Consider using `<Image />` from `next/image` or a custom image loader to automatically optimize images. This may incur additional usage or cost from your provider. See: https://nextjs.org/docs/messages/no-img-element  @next/next/no-img-element
+07:34:45.217 
+07:34:45.217 ./components/common/PWAInstallButton.tsx
+07:34:45.217 129:17  Warning: Using `<img>` could result in slower LCP and higher bandwidth. Consider using `<Image />` from `next/image` or a custom image loader to automatically optimize images. This may incur additional usage or cost from your provider. See: https://nextjs.org/docs/messages/no-img-element  @next/next/no-img-element
+07:34:45.217 
+07:34:45.218 ./components/common/StudentSchemaAdmissionForm.tsx
+07:34:45.218 394:29  Error: Compilation Skipped: Existing memoization could not be preserved
+07:34:45.218 
+07:34:45.218 React Compiler has skipped optimizing this component because the existing manual memoization could not be preserved. This value was memoized in source but not in compilation output.
+07:34:45.218 
+07:34:45.218 /vercel/path0/components/common/StudentSchemaAdmissionForm.tsx:394:29
+07:34:45.218   392 |     : ['Morning', 'Day'];
+07:34:45.218   393 |
+07:34:45.218 > 394 |   const fourthSubjectPool = useMemo(
+07:34:45.218       |                             ^^^^^^^^
+07:34:45.218 > 395 |     () =>
+07:34:45.218       | ^^^^^^^^^
+07:34:45.218 > 396 |       sortSubjectsByOrder(
+07:34:45.218       …
+07:34:45.218       | ^^^^^^^^^
+07:34:45.218 > 405 |     [subjects, grade, effectiveGroup, gender]
+07:34:45.218       | ^^^^^^^^^
+07:34:45.218 > 406 |   );
+07:34:45.218       | ^^^^ Could not preserve existing memoization
+07:34:45.218   407 |
+07:34:45.218   408 |   const electivePool = useMemo(
+07:34:45.218   409 |     () =>  react-hooks/preserve-manual-memoization
+07:34:45.219 405:23  Error: Compilation Skipped: Existing memoization could not be preserved
+07:34:45.219 
+07:34:45.219 React Compiler has skipped optimizing this component because the existing manual memoization could not be preserved. This dependency may be mutated later, which could cause the value to change unexpectedly.
+07:34:45.219 
+07:34:45.219 /vercel/path0/components/common/StudentSchemaAdmissionForm.tsx:405:23
+07:34:45.219   403 |         )
+07:34:45.219   404 |       ),
+07:34:45.219 > 405 |     [subjects, grade, effectiveGroup, gender]
+07:34:45.219       |                       ^^^^^^^^^^^^^^ This dependency may be modified later
+07:34:45.219   406 |   );
+07:34:45.219   407 |
+07:34:45.219   408 |   const electivePool = useMemo(  react-hooks/preserve-manual-memoization
+07:34:45.219 408:24  Error: Compilation Skipped: Existing memoization could not be preserved
+07:34:45.219 
+07:34:45.219 React Compiler has skipped optimizing this component because the existing manual memoization could not be preserved. This value was memoized in source but not in compilation output.
+07:34:45.219 
+07:34:45.219 /vercel/path0/components/common/StudentSchemaAdmissionForm.tsx:408:24
+07:34:45.219   406 |   );
+07:34:45.219   407 |
+07:34:45.219 > 408 |   const electivePool = useMemo(
+07:34:45.219       |                        ^^^^^^^^
+07:34:45.220 > 409 |     () =>
+07:34:45.220       | ^^^^^^^^^
+07:34:45.220 > 410 |       sortSubjectsByOrder(
+07:34:45.220       …
+07:34:45.220       | ^^^^^^^^^
+07:34:45.220 > 421 |     [subjects, grade, effectiveGroup, gender]
+07:34:45.220       | ^^^^^^^^^
+07:34:45.220 > 422 |   );
+07:34:45.221       | ^^^^ Could not preserve existing memoization
+07:34:45.221   423 |
+07:34:45.221   424 |   const handleClassChange = (nextClassName: string) => {
+07:34:45.221   425 |     setGrade(nextClassName);  react-hooks/preserve-manual-memoization
+07:34:45.221 421:23  Error: Compilation Skipped: Existing memoization could not be preserved
+07:34:45.221 
+07:34:45.221 React Compiler has skipped optimizing this component because the existing manual memoization could not be preserved. This dependency may be mutated later, which could cause the value to change unexpectedly.
+07:34:45.221 
+07:34:45.221 /vercel/path0/components/common/StudentSchemaAdmissionForm.tsx:421:23
+07:34:45.221   419 |         )
+07:34:45.221   420 |       ),
+07:34:45.221 > 421 |     [subjects, grade, effectiveGroup, gender]
+07:34:45.221       |                       ^^^^^^^^^^^^^^ This dependency may be modified later
+07:34:45.221   422 |   );
+07:34:45.221   423 |
+07:34:45.221   424 |   const handleClassChange = (nextClassName: string) => {  react-hooks/preserve-manual-memoization
+07:34:45.221 677:19  Warning: Using `<img>` could result in slower LCP and higher bandwidth. Consider using `<Image />` from `next/image` or a custom image loader to automatically optimize images. This may incur additional usage or cost from your provider. See: https://nextjs.org/docs/messages/no-img-element  @next/next/no-img-element
+07:34:45.221 
+07:34:45.221 ./components/public/PublicShell.tsx
+07:34:45.221 436:13  Warning: Using `<img>` could result in slower LCP and higher bandwidth. Consider using `<Image />` from `next/image` or a custom image loader to automatically optimize images. This may incur additional usage or cost from your provider. See: https://nextjs.org/docs/messages/no-img-element  @next/next/no-img-element
+07:34:45.221 662:27  Warning: Using `<img>` could result in slower LCP and higher bandwidth. Consider using `<Image />` from `next/image` or a custom image loader to automatically optimize images. This may incur additional usage or cost from your provider. See: https://nextjs.org/docs/messages/no-img-element  @next/next/no-img-element
+07:34:45.221 701:29  Warning: Using `<img>` could result in slower LCP and higher bandwidth. Consider using `<Image />` from `next/image` or a custom image loader to automatically optimize images. This may incur additional usage or cost from your provider. See: https://nextjs.org/docs/messages/no-img-element  @next/next/no-img-element
+07:34:45.221 735:27  Warning: Using `<img>` could result in slower LCP and higher bandwidth. Consider using `<Image />` from `next/image` or a custom image loader to automatically optimize images. This may incur additional usage or cost from your provider. See: https://nextjs.org/docs/messages/no-img-element  @next/next/no-img-element
+07:34:45.221 895:21  Warning: Using `<img>` could result in slower LCP and higher bandwidth. Consider using `<Image />` from `next/image` or a custom image loader to automatically optimize images. This may incur additional usage or cost from your provider. See: https://nextjs.org/docs/messages/no-img-element  @next/next/no-img-element
+07:34:45.221 
+07:34:45.221 info  - Need to disable some ESLint rules? Learn more here: https://nextjs.org/docs/app/api-reference/config/eslint#disabling-rules
+07:34:45.278 Error: [BUILD_UTILS_SPAWN_1] Command "npm run build" exited with 1

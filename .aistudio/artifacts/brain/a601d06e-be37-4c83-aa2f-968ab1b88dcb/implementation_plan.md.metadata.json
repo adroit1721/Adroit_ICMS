@@ -1,6 +1,0 @@
-{
-  "summary":  "Architectural and UX implementation plan to fix the public Result Search modal and \"Student not found\" lookup bug, upgrade A4 single-page PDF download and print rendering, and transform the Marksheet Studio into a full click-to-edit visual layout and copy editor.",
-  "updatedAt":  "2026-11-27T08:31:14.439725770Z",
-  "requestFeedback":  true,
-  "userFacing":  true
-}
