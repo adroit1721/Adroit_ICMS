@@ -1,8 +1,10 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
+import { Receipt, ShieldCheck } from 'lucide-react';
 import { useERPStore } from '@/lib/store';
 import { StudentInvoice } from '@/lib/types';
+import DualCopyPaymentReceiptModal from '@/components/common/DualCopyPaymentReceiptModal';
 
 export default function BillingTab() {
   const { isHydrated } = useERPStore();
@@ -16,7 +18,7 @@ function BillingTabInner() {
     generateBulkInvoices,
     updateMfsConfig,
   } = useERPStore();
-  const { invoices, students, cmsConfig, mfsConfig, academicClasses } = state;
+  const { invoices, students, admissions, cmsConfig, mfsConfig, academicClasses } = state;
 
   const [subTab, setSubTab] = useState<'ledger' | 'gateway'>('ledger');
   const [filterStatus, setFilterStatus] = useState<string>('all');
@@ -25,6 +27,21 @@ function BillingTabInner() {
   const [showBulkModal, setShowBulkModal] = useState(false);
   const [receiptInvoice, setReceiptInvoice] = useState<StudentInvoice | null>(null);
   const [feedback, setFeedback] = useState<string | null>(null);
+  const [mfsCaps, setMfsCaps] = useState<{
+    bkashLive: boolean;
+    nagadLive: boolean;
+    rocketLive: boolean;
+    smsLive: boolean;
+  } | null>(null);
+
+  useEffect(() => {
+    fetch('/api/payments/mfs', { credentials: 'include' })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => {
+        if (d?.ok && d.capabilities) setMfsCaps(d.capabilities);
+      })
+      .catch(() => undefined);
+  }, []);
 
   // Collect form state
   const [selectedStudentId, setSelectedStudentId] = useState(students[0]?.id || '');
@@ -266,7 +283,29 @@ function BillingTabInner() {
                           Roll #{inv.rollNumber} • {inv.className} ({inv.sectionName})
                         </span>
                       </td>
-                      <td className="py-3.5 px-4 font-medium">{inv.month}</td>
+                      <td className="py-3.5 px-4">
+                        <div className="font-medium">{inv.month}</div>
+                        <div className="flex flex-wrap items-center gap-1 mt-0.5">
+                          {inv.feeCategory && (
+                            <span
+                              className={`px-1.5 py-0.5 rounded text-[10px] font-bold ${
+                                inv.feeCategory === 'Re-admission'
+                                  ? 'bg-emerald-100 text-emerald-900'
+                                  : inv.feeCategory === 'Admission'
+                                  ? 'bg-sky-100 text-sky-900'
+                                  : 'bg-surface-container text-on-surface-variant'
+                              }`}
+                            >
+                              {inv.feeCategory}
+                            </span>
+                          )}
+                          {inv.smsNotifiedAt && (
+                            <span className="px-1.5 py-0.5 rounded bg-indigo-50 text-indigo-900 text-[10px] font-semibold">
+                              SMS Logged
+                            </span>
+                          )}
+                        </div>
+                      </td>
                       <td className="py-3.5 px-4 font-mono font-bold tabular-nums">৳{inv.totalPayable}</td>
                       <td className="py-3.5 px-4 font-mono font-bold text-emerald-800 tabular-nums">
                         ৳{inv.paidAmount}
@@ -288,35 +327,37 @@ function BillingTabInner() {
                         </span>
                       </td>
                       <td className="py-3.5 px-4 text-right">
-                        {inv.status === 'Paid' ? (
+                        <div className="inline-flex items-center gap-1.5 justify-end">
                           <button
                             type="button"
                             onClick={() => setReceiptInvoice(inv)}
-                            className="inline-flex items-center gap-1 px-3 py-1 rounded-xl bg-surface-container hover:bg-surface-container-high text-xs font-semibold cursor-pointer"
+                            className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-surface-container hover:bg-surface-container-high text-xs font-semibold cursor-pointer"
+                            title="Print Half-and-Half Dual-Copy A4 Receipt"
                           >
-                            <span className="material-symbols-outlined text-[15px]">print</span>
-                            Receipt
+                            <Receipt className="w-3.5 h-3.5" />
+                            Dual Receipt
                           </button>
-                        ) : (
-                          <button
-                            type="button"
-                            onClick={() => {
-                              const remaining = Math.max(0, inv.totalPayable - (inv.paidAmount || 0));
-                              const settled = recordFeePayment({
-                                invoiceId: inv.id,
-                                studentId: inv.studentId,
-                                month: inv.month,
-                                amount: remaining > 0 ? remaining : inv.totalPayable,
-                                method: 'Cash',
-                                transactionId: `CASH-${Date.now().toString().slice(-6)}`,
-                              });
-                              if (settled) setReceiptInvoice(settled);
-                            }}
-                            className="inline-flex items-center gap-1 px-3 py-1 rounded-xl bg-emerald-50 text-emerald-800 hover:bg-emerald-100 text-xs font-bold cursor-pointer"
-                          >
-                            Mark Paid
-                          </button>
-                        )}
+                          {inv.status !== 'Paid' && (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const remaining = Math.max(0, inv.totalPayable - (inv.paidAmount || 0));
+                                const settled = recordFeePayment({
+                                  invoiceId: inv.id,
+                                  studentId: inv.studentId,
+                                  month: inv.month,
+                                  amount: remaining > 0 ? remaining : inv.totalPayable,
+                                  method: 'Cash',
+                                  transactionId: `CASH-${Date.now().toString().slice(-6)}`,
+                                });
+                                if (settled) setReceiptInvoice(settled);
+                              }}
+                              className="inline-flex items-center gap-1 px-3 py-1.5 rounded-xl bg-emerald-50 text-emerald-800 hover:bg-emerald-100 text-xs font-bold cursor-pointer"
+                            >
+                              Mark Paid
+                            </button>
+                          )}
+                        </div>
                       </td>
                     </tr>
                   ))}
@@ -356,6 +397,22 @@ function BillingTabInner() {
                 className="w-32 px-3 py-2 rounded-xl bg-surface-container-low border border-outline-variant/30 font-mono font-bold"
               />
             </div>
+          </div>
+
+          <div className="p-4 rounded-2xl bg-surface-container-low border border-outline-variant/25 flex flex-wrap items-center justify-between gap-3">
+            <div className="flex items-center gap-2 font-semibold text-on-surface">
+              <ShieldCheck className="w-4 h-4 text-emerald-700 shrink-0" />
+              <span>
+                Server MFS &amp; SMS Gateway Readiness:{' '}
+                <strong>bKash</strong> ({mfsCaps?.bkashLive ? 'Live API Keys Loaded' : 'Manual TrxID Mode'}) &bull;{' '}
+                <strong>Nagad</strong> ({mfsCaps?.nagadLive ? 'Live API Keys Loaded' : 'Manual TrxID Mode'}) &bull;{' '}
+                <strong>Rocket</strong> ({mfsCaps?.rocketLive ? 'Live API Keys Loaded' : 'Manual TrxID Mode'}) &bull;{' '}
+                <strong>SMS Dispatch</strong> ({mfsCaps?.smsLive ? 'API Active' : 'Audit Log Queue'})
+              </span>
+            </div>
+            <span className="text-[11px] text-on-surface-variant">
+              Add merchant secrets in server environment variables to switch from Manual TrxID to automated tokenized checkout.
+            </span>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
@@ -694,77 +751,18 @@ function BillingTabInner() {
         </div>
       )}
 
-      {/* Printable Money Receipt Modal */}
+      {/* Printable Single-Page A4 Dual-Copy Money Receipt Modal */}
       {receiptInvoice && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs">
-          <div className="bg-white rounded-3xl p-8 max-w-lg w-full shadow-2xl space-y-6 text-on-surface border border-outline-variant/30">
-            <div className="flex items-center justify-between pb-3 border-b border-outline-variant/20 no-print">
-              <span className="font-bold text-xs uppercase tracking-wider text-primary">
-                Official Money Receipt
-              </span>
-              <button
-                type="button"
-                onClick={() => setReceiptInvoice(null)}
-                className="p-1.5 rounded-full text-on-surface-variant hover:bg-surface-container cursor-pointer"
-              >
-                <span className="material-symbols-outlined text-[18px]">close</span>
-              </button>
-            </div>
-
-            <div className="text-center space-y-1">
-              <h2 className="font-bold text-base text-primary uppercase">
-                {cmsConfig.schoolName}
-              </h2>
-              <p className="text-[10px] text-on-surface-variant font-mono">
-                {cmsConfig.address} • {cmsConfig.phone}
-              </p>
-              <div className="text-[11px] font-bold uppercase text-emerald-800 pt-1">
-                Student Tuition &amp; Exam Fee Receipt
-              </div>
-            </div>
-
-            <div className="p-4 bg-surface-container-low/70 rounded-2xl grid grid-cols-2 gap-2 text-xs font-mono">
-              <div>Receipt No: <strong>{receiptInvoice.invoiceNo}</strong></div>
-              <div>Date: <strong>{receiptInvoice.paymentDate}</strong></div>
-              <div>Student Name: <strong>{receiptInvoice.studentName}</strong></div>
-              <div>Class Roll: <strong>#{receiptInvoice.rollNumber}</strong></div>
-              <div>Class / Section: <strong>{receiptInvoice.className} ({receiptInvoice.sectionName})</strong></div>
-              <div>Billing Month: <strong>{receiptInvoice.month}</strong></div>
-            </div>
-
-            <div className="border-t border-b border-outline-variant/20 py-3 flex items-center justify-between font-mono">
-              <div>
-                <span className="text-xs text-on-surface-variant block">Payment Method &amp; TrxID:</span>
-                <span className="font-bold text-xs text-primary-container">
-                  {receiptInvoice.paymentMethod} • {receiptInvoice.transactionId}
-                </span>
-              </div>
-              <div className="text-right">
-                <span className="text-xs text-on-surface-variant block">Total Paid:</span>
-                <span className="font-bold text-xl text-emerald-800">৳{receiptInvoice.paidAmount}.00</span>
-              </div>
-            </div>
-
-            <div className="flex items-end justify-between pt-6 text-[10px] font-mono text-on-surface-variant">
-              <div>Received with thanks by Accounts Office</div>
-              <div className="text-center">
-                <div className="w-28 border-b border-black mb-1" />
-                <span>Authorized Cashier</span>
-              </div>
-            </div>
-
-            <div className="flex justify-end gap-2 pt-2 no-print">
-              <button
-                type="button"
-                onClick={() => window.print()}
-                className="inline-flex items-center gap-1.5 px-5 py-2 rounded-xl bg-primary-container text-on-primary text-xs font-bold shadow-md hover:bg-primary cursor-pointer"
-              >
-                <span className="material-symbols-outlined text-[16px]">print</span>
-                Print Receipt
-              </button>
-            </div>
-          </div>
-        </div>
+        <DualCopyPaymentReceiptModal
+          cmsConfig={cmsConfig}
+          invoice={receiptInvoice}
+          application={
+            receiptInvoice.applicationId
+              ? admissions.find((a) => a.id === receiptInvoice.applicationId) || null
+              : null
+          }
+          onClose={() => setReceiptInvoice(null)}
+        />
       )}
     </div>
   );

@@ -1853,6 +1853,15 @@ function StudentsTabInner() {
                                     Pending Approval &rarr;
                                   </button>
                                 )}
+                                {s.reAdmissionState &&
+                                  (s.reAdmissionState.status === 'Pending Re-admission' ||
+                                    s.reAdmissionState.status === 'Submitted') && (
+                                    <span className="inline-block mt-0.5 px-1.5 py-0.5 rounded bg-emerald-50 border border-emerald-200 text-[10px] font-bold text-emerald-900">
+                                      {s.reAdmissionState.status} &rarr;{' '}
+                                      {s.reAdmissionState.targetClassName} (
+                                      {s.reAdmissionState.targetAcademicYear})
+                                    </span>
+                                  )}
                               </div>
                             </div>
                           </td>
@@ -1943,13 +1952,19 @@ function StudentsTabInner() {
           subjects={subjects}
           markEntries={markEntries}
           instituteRules={instituteRules}
-          onPromoted={(count, targetCls, promotedIds) => {
-            setQueriedStudents((prev) => prev.filter((s) => !promotedIds.includes(s.id)));
+          onPromoted={(count, targetCls, promotedIds, reqReAdmission) => {
+            if (!reqReAdmission) {
+              setQueriedStudents((prev) => prev.filter((s) => !promotedIds.includes(s.id)));
+            }
             setSelectedIds([]);
             setShowPromoteModal(false);
             refreshFromServer();
             setQueryNonce((n) => n + 1);
-            showToast(`Successfully promoted ${count} student(s) to ${targetCls}.`);
+            showToast(
+              reqReAdmission
+                ? `Queued ${count} promoted student(s) for Re-admission to ${targetCls}. Complete in Admissions Desk or Public Portal.`
+                : `Successfully promoted ${count} student(s) directly to ${targetCls}.`
+            );
           }}
           onClose={() => setShowPromoteModal(false)}
         />

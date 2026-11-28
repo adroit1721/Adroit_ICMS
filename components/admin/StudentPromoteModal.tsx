@@ -32,8 +32,25 @@ interface StudentPromoteModalProps {
   subjects: Subject[];
   markEntries: MarkEntry[];
   instituteRules: InstituteRules;
-  onPromoted: (promotedCount: number, targetClass: string, promotedIds: string[]) => void;
+  onPromoted: (
+    promotedCount: number,
+    targetClass: string,
+    promotedIds: string[],
+    requireReAdmission?: boolean
+  ) => void;
   onClose: () => void;
+}
+
+function incrementAcademicYearLabel(raw: string): string {
+  const trimmed = raw.trim();
+  if (/^\d{4}$/.test(trimmed)) {
+    return String(Number(trimmed) + 1);
+  }
+  const range = trimmed.match(/^(\d{4})\s*-\s*(\d{4})$/);
+  if (range) {
+    return `${Number(range[1]) + 1}-${Number(range[2]) + 1}`;
+  }
+  return String(new Date().getFullYear() + 1);
 }
 
 interface RowOverride {
@@ -61,6 +78,16 @@ export default function StudentPromoteModal({
     academicClasses.find((c) => c.name !== sourceClassName)?.name ||
     academicClasses[0]?.name ||
     '';
+
+  const defaultSourceYear =
+    selectedStudents[0]?.batchCycle ||
+    instituteRules.activeAcademicYear ||
+    String(new Date().getFullYear());
+  const [sourceAcademicYear, setSourceAcademicYear] = useState<string>(defaultSourceYear);
+  const [targetAcademicYear, setTargetAcademicYear] = useState<string>(
+    incrementAcademicYearLabel(defaultSourceYear)
+  );
+  const [requireReAdmission, setRequireReAdmission] = useState<boolean>(true);
 
   const [promotionKind, setPromotionKind] = useState<'simple' | 'result'>('result');
   const [simpleRollStrategy, setSimpleRollStrategy] = useState<'direct' | 'keep-roll'>('direct');
@@ -148,11 +175,17 @@ export default function StudentPromoteModal({
   ]);
 
   const resolvedRows = useMemo(() => {
+    const normTargetYear = targetAcademicYear.trim();
     const existingInTarget = allStudents.filter(
       (s) =>
-        s.status === 'Active' &&
-        s.className === targetClass &&
-        !selectedStudents.some((sel) => sel.id === s.id)
+        !selectedStudents.some((sel) => sel.id === s.id) &&
+        ((s.status === 'Active' &&
+          s.className === targetClass &&
+          (!normTargetYear || !s.batchCycle || s.batchCycle === normTargetYear)) ||
+          ((s.reAdmissionState?.status === 'Pending Re-admission' ||
+            s.reAdmissionState?.status === 'Submitted') &&
+            s.reAdmissionState.targetClassName === targetClass &&
+            (!normTargetYear || s.reAdmissionState.targetAcademicYear === normTargetYear)))
     );
 
     const rowsWithOverrides = previewRows.map((row) => {
@@ -228,6 +261,7 @@ export default function StudentPromoteModal({
     targetHasGroups,
     allStudents,
     targetClass,
+    targetAcademicYear,
     selectedStudents,
   ]);
 
@@ -266,6 +300,11 @@ export default function StudentPromoteModal({
       return;
     }
 
+    if (!sourceAcademicYear.trim() || !targetAcademicYear.trim()) {
+      setErrorMsg('Specify both Source Academic Year and Target Academic Year.');
+      return;
+    }
+
     setSubmitting(true);
     try {
       const res = await fetch('/api/students/promote', {
@@ -277,6 +316,9 @@ export default function StudentPromoteModal({
         credentials: 'include',
         body: JSON.stringify({
           studentIds: includedRows.map((r) => r.student.id),
+          sourceAcademicYear: sourceAcademicYear.trim(),
+          targetAcademicYear: targetAcademicYear.trim(),
+          requireReAdmission,
           targetClass,
           targetSection,
           targetGroup:
@@ -300,7 +342,8 @@ export default function StudentPromoteModal({
       onPromoted(
         data.promotedCount || includedRows.length,
         targetClass,
-        includedRows.map((r) => r.student.id)
+        includedRows.map((r) => r.student.id),
+        requireReAdmission
       );
     } catch (err) {
       setErrorMsg(err instanceof Error ? err.message : 'Promotion failed');
@@ -339,6 +382,69 @@ export default function StudentPromoteModal({
 
         {/* Configuration Controls */}
         <div className="p-5 border-b border-outline-variant/20 space-y-4 bg-surface-container-lowest text-xs">
+          {/* Academic Year Progression & Re-admission Workflow */}
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-3 p-3.5 rounded-2xl bg-surface-container-low/70 border border-outline-variant/25">
+            <div className="lg:col-span-3">
+              <label className="block text-[10px] font-bold uppercase tracking-wider text-on-surface-variant mb-1">
+                From Year / Session *
+              </label>
+              <input
+                type="text"
+                value={sourceAcademicYear}
+                onChange={(e) => setSourceAcademicYear(e.target.value)}
+                placeholder="e.g. 2026"
+                className="w-full px-3 py-2 rounded-xl bg-white border border-outline-variant/30 font-mono font-bold tabular-nums text-xs"
+              />
+            </div>
+            <div className="lg:col-span-3">
+              <label className="block text-[10px] font-bold uppercase tracking-wider text-on-surface-variant mb-1">
+                Promoted Target Year *
+              </label>
+              <input
+                type="text"
+                value={targetAcademicYear}
+                onChange={(e) => setTargetAcademicYear(e.target.value)}
+                placeholder="e.g. 2027"
+                className="w-full px-3 py-2 rounded-xl bg-white border border-outline-variant/30 font-mono font-bold tabular-nums text-xs text-primary-container"
+              />
+            </div>
+            <div className="lg:col-span-6">
+              <label className="block text-[10px] font-bold uppercase tracking-wider text-on-surface-variant mb-1">
+                Re-admission Enrollment Mode
+              </label>
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  onClick={() => setRequireReAdmission(true)}
+                  className={`px-3 py-2 rounded-xl border text-left transition-all cursor-pointer ${
+                    requireReAdmission
+                      ? 'bg-emerald-50 border-emerald-600 text-emerald-950 font-bold'
+                      : 'bg-white border-outline-variant/30 text-on-surface-variant font-semibold'
+                  }`}
+                >
+                  <div>Pending Re-admission</div>
+                  <div className="text-[10px] font-normal opacity-80">
+                    Queues student for form update &amp; fee
+                  </div>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setRequireReAdmission(false)}
+                  className={`px-3 py-2 rounded-xl border text-left transition-all cursor-pointer ${
+                    !requireReAdmission
+                      ? 'bg-primary/10 border-primary-container text-primary-container font-bold'
+                      : 'bg-white border-outline-variant/30 text-on-surface-variant font-semibold'
+                  }`}
+                >
+                  <div>Direct Active Switch</div>
+                  <div className="text-[10px] font-normal opacity-80">
+                    Moves class &amp; year immediately
+                  </div>
+                </button>
+              </div>
+            </div>
+          </div>
+
           {/* Promotion Mode Switcher */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <button
@@ -388,7 +494,7 @@ export default function StudentPromoteModal({
               <div>
                 <div className="font-bold text-on-surface">Simple Next Class Promotion</div>
                 <p className="text-[11px] text-on-surface-variant mt-0.5">
-                  Directly promotes selected students to the next class while keeping their existing Roll No. or appending sequential Roll numbers.
+                  Promotes selected students to the next class while keeping their existing Roll No. or appending sequential Roll numbers.
                 </p>
               </div>
             </button>
@@ -735,9 +841,13 @@ export default function StudentPromoteModal({
         {/* Footer */}
         <div className="px-6 py-4 border-t border-outline-variant/20 bg-surface-container-low/50 flex flex-wrap items-center justify-between gap-3 text-xs">
           <div className="text-on-surface-variant">
-            Promoting <strong>{includedRows.length}</strong> student(s) to{' '}
-            <strong className="text-on-surface">{targetClass}</strong> (
-            {promotionKind === 'result' ? 'Result-Wise Merit Rank' : 'Simple Next Class'}).
+            {requireReAdmission ? 'Queuing ' : 'Promoting '}
+            <strong>{includedRows.length}</strong> student(s) from{' '}
+            <strong className="font-mono tabular-nums">{sourceAcademicYear}</strong> to{' '}
+            <strong className="text-on-surface">
+              {targetClass} ({targetAcademicYear})
+            </strong>{' '}
+            &middot; {requireReAdmission ? 'Status: Pending Re-admission' : 'Direct Active Switch'}.
           </div>
           <div className="flex items-center gap-2">
             <button
@@ -754,7 +864,11 @@ export default function StudentPromoteModal({
               className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-secondary hover:bg-secondary/90 disabled:opacity-50 text-on-secondary font-bold shadow-sm cursor-pointer"
             >
               {submitting && <Loader2 className="w-4 h-4 animate-spin" />}
-              <span>Promote Selected Students ({includedRows.length})</span>
+              <span>
+                {requireReAdmission
+                  ? `Queue for Re-admission (${includedRows.length})`
+                  : `Promote Directly (${includedRows.length})`}
+              </span>
             </button>
           </div>
         </div>

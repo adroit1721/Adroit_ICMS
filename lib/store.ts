@@ -957,6 +957,38 @@ const updateAdmissionFormConfig = (updates: Partial<AdmissionFormConfig>) => {
   void mutateServer('updateAdmissionFormConfig', { updates });
 };
 
+const updateClassIntakeConfig = async (
+  id: string,
+  updates: Partial<AcademicClass>
+): Promise<{ ok: boolean; error?: string }> => {
+  globalState.academicClasses = globalState.academicClasses.map((c) =>
+    c.id === id ? { ...c, ...updates } : c
+  );
+  notify();
+  const res = await mutateServer('updateClassIntakeConfig', { id, updates });
+  return res.ok ? { ok: true } : { ok: false, error: res.error };
+};
+
+const verifyAdmissionPaymentAndFinalize = async (params: {
+  applicationId: string;
+  markPaid?: boolean;
+  paymentChannel?: 'Cash' | 'bKash' | 'Nagad' | 'Rocket' | 'Online MFS' | 'Waived';
+  trxId?: string;
+  assignedClass?: string;
+  assignedSection?: string;
+  assignedGroup?: AcademicGroup;
+  assignedShift?: ShiftType;
+  assignedRoll?: number;
+  systemId?: string;
+}): Promise<{ ok: boolean; data?: unknown; error?: string }> => {
+  const res = await mutateServer('verifyAdmissionPaymentAndFinalize', params);
+  if (res.ok) {
+    await refreshFromServer();
+    return { ok: true, data: res.data };
+  }
+  return { ok: false, error: res.error || 'Failed to verify and finalize admission.' };
+};
+
 const resolveClassCycle = (className: string): string => {
   const clsObj = globalState.academicClasses.find((c) => c.name === className);
   return resolveDefaultBatchCycle(className, globalState.instituteRules, clsObj);
@@ -1791,6 +1823,8 @@ export function useERPStore() {
     deleteAdmissionApplication,
     admitApplicantToClass,
     updateAdmissionFormConfig,
+    updateClassIntakeConfig,
+    verifyAdmissionPaymentAndFinalize,
     createInvoice,
     generateBulkInvoices,
     recordFeePayment,

@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { Download, Printer } from 'lucide-react';
+import { Download, Printer, Receipt } from 'lucide-react';
 import { useERPStore } from '@/lib/store';
 import { ExamResultRecord, Student, StudentInvoice } from '@/lib/types';
 import {
@@ -22,6 +22,7 @@ import { generateQrDataUrl } from '@/lib/qr';
 import { downloadMarksheetAsPdf, printMarksheetDocument } from '@/lib/marksheet-pdf';
 import MediaUploadInput from '@/components/admin/MediaUploadInput';
 import MarksheetDocument from '@/components/common/MarksheetDocument';
+import DualCopyPaymentReceiptModal from '@/components/common/DualCopyPaymentReceiptModal';
 
 type PaymentGateway = 'bKash' | 'Nagad' | 'Rocket' | 'Bank';
 
@@ -585,18 +586,28 @@ export default function StudentPortalPage() {
                           <button
                             type="button"
                             onClick={() => setReceiptInvoice(inv)}
-                            className="px-3.5 py-1.5 rounded-full bg-white hover:bg-surface-container text-on-surface text-xs font-semibold border border-outline-variant/40 cursor-pointer"
+                            className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full bg-white hover:bg-surface-container text-on-surface text-xs font-semibold border border-outline-variant/40 cursor-pointer"
                           >
-                            Print Receipt
+                            <Receipt className="w-3.5 h-3.5" />
+                            Dual Receipt
                           </button>
                         ) : (
-                          <button
-                            type="button"
-                            onClick={() => handleSelectUnpaidInvoice(inv)}
-                            className="px-4 py-1.5 rounded-full bg-primary-container hover:bg-primary text-on-primary text-xs font-semibold cursor-pointer"
-                          >
-                            Pay Now
-                          </button>
+                          <div className="flex items-center gap-1.5">
+                            <button
+                              type="button"
+                              onClick={() => setReceiptInvoice(inv)}
+                              className="px-2.5 py-1.5 rounded-full bg-white hover:bg-surface-container text-on-surface text-xs font-semibold border border-outline-variant/40 cursor-pointer"
+                            >
+                              Slip
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleSelectUnpaidInvoice(inv)}
+                              className="px-4 py-1.5 rounded-full bg-primary-container hover:bg-primary text-on-primary text-xs font-semibold cursor-pointer"
+                            >
+                              Pay Now
+                            </button>
+                          </div>
                         )}
                       </div>
                     </div>
@@ -1283,95 +1294,13 @@ export default function StudentPortalPage() {
         )}
       </main>
 
-      {/* OFFICIAL MONEY RECEIPT MODAL */}
+      {/* SINGLE-PAGE A4 DUAL-COPY MONEY RECEIPT MODAL */}
       {receiptInvoice && (
-        <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-4">
-          <div className="relative w-full max-w-lg bg-white rounded-3xl shadow-2xl p-6 sm:p-8 space-y-5">
-            <div className="flex items-center justify-between border-b border-outline-variant/30 pb-4 no-print">
-              <span className="text-xs font-bold uppercase tracking-wider text-emerald-700">
-                Official Money Receipt
-              </span>
-              <button
-                type="button"
-                onClick={() => setReceiptInvoice(null)}
-                className="w-8 h-8 rounded-full bg-surface-container flex items-center justify-center cursor-pointer"
-              >
-                <span className="material-symbols-outlined text-[18px]">close</span>
-              </button>
-            </div>
-
-            <div className="p-6 rounded-2xl border-2 border-slate-900 space-y-4 text-xs text-slate-900">
-              <div className="text-center border-b border-slate-300 pb-3 space-y-1">
-                <h3 className="text-lg font-bold font-display-lg">{cmsConfig.schoolName}</h3>
-                <p className="text-[11px] text-slate-600">
-                  {cmsConfig.address} &bull; {cmsConfig.eiin}
-                </p>
-                <span className="inline-block px-3 py-0.5 rounded bg-emerald-700 text-white font-bold text-[10px] uppercase">
-                  PAID MONEY RECEIPT
-                </span>
-              </div>
-
-              <div className="grid grid-cols-2 gap-y-2">
-                <div>
-                  <span className="text-slate-500 block">Receipt No</span>
-                  <span className="font-mono font-bold">{receiptInvoice.invoiceNo}</span>
-                </div>
-                <div className="text-right">
-                  <span className="text-slate-500 block">Payment Date</span>
-                  <span className="font-mono font-bold">{receiptInvoice.paymentDate || 'Today'}</span>
-                </div>
-                <div>
-                  <span className="text-slate-500 block">Student Name</span>
-                  <span className="font-bold">{receiptInvoice.studentName}</span>
-                </div>
-                <div className="text-right">
-                  <span className="text-slate-500 block">Class &amp; Roll</span>
-                  <span className="font-bold">
-                    {receiptInvoice.className} (
-                    {receiptInvoice.sectionName === 'Common'
-                      ? 'Single Cohort'
-                      : receiptInvoice.sectionName}
-                    ) &bull; #{receiptInvoice.rollNumber}
-                  </span>
-                </div>
-              </div>
-
-              <div className="p-3 rounded-xl bg-slate-50 border border-slate-200 space-y-1.5">
-                <div className="flex justify-between">
-                  <span className="text-slate-600">Fee Description</span>
-                  <span className="font-semibold">{receiptInvoice.month}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-slate-600">Payment Channel</span>
-                  <span className="font-semibold">{receiptInvoice.paymentMethod || 'MFS'}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-slate-600">Transaction ID</span>
-                  <span className="font-mono font-bold">
-                    {receiptInvoice.transactionId || 'N/A'}
-                  </span>
-                </div>
-                <div className="flex justify-between pt-2 border-t border-slate-200 text-sm font-bold">
-                  <span>Total Amount Paid</span>
-                  <span className="font-mono">
-                    BDT {receiptInvoice.paidAmount.toLocaleString()}
-                  </span>
-                </div>
-              </div>
-            </div>
-
-            <div className="flex justify-end gap-3 no-print">
-              <button
-                type="button"
-                onClick={() => window.print()}
-                className="inline-flex items-center gap-2 px-5 py-2.5 rounded-full bg-primary-container hover:bg-primary text-on-primary text-xs font-semibold cursor-pointer"
-              >
-                <span className="material-symbols-outlined text-[18px]">print</span>
-                Print Money Receipt
-              </button>
-            </div>
-          </div>
-        </div>
+        <DualCopyPaymentReceiptModal
+          cmsConfig={cmsConfig}
+          invoice={receiptInvoice}
+          onClose={() => setReceiptInvoice(null)}
+        />
       )}
     </div>
   );

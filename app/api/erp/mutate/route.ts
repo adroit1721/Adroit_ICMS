@@ -25,6 +25,11 @@ import {
   stripMongoDoc,
 } from '@/lib/server/erp-repository';
 import {
+  finalizeAdmissionOrReAdmission,
+  normalizeDobToIso,
+  sanitizeStudentPhotoUrl,
+} from '@/lib/server/admission-billing-service';
+import {
   collectNoticeMediaEntries,
   collectStudentMediaEntries,
   collectTeacherMediaEntries,
@@ -1962,22 +1967,52 @@ export async function POST(req: NextRequest) {
           systemId: assignedSystemId,
           rollNumber: params.rollNumber || 1,
           fullName: app.applicantName,
+          banglaName: app.banglaName,
           gender: studentGender,
           fatherName: app.fatherName || 'Guardian On File',
+          fatherBanglaName: app.fatherBanglaName,
+          fatherNid: app.fatherNid,
+          fatherPhone: app.fatherPhone,
+          fatherOccupation: app.fatherOccupation,
           motherName: app.motherName || 'Guardian On File',
-          dateOfBirth: '2010-01-01',
+          motherBanglaName: app.motherBanglaName,
+          motherNid: app.motherNid,
+          motherPhone: app.motherPhone,
+          motherOccupation: app.motherOccupation,
+          hasLocalGuardian: app.hasLocalGuardian,
+          guardianName: app.guardianName,
+          guardianRelation: app.guardianRelation,
+          guardianPhone: app.guardianPhone,
+          dateOfBirth: normalizeDobToIso(app.dateOfBirth) || '2010-01-01',
+          bloodGroup: app.bloodGroup,
+          birthRegOrNid: app.birthRegOrNid,
           className: params.className,
           sectionName: params.sectionName,
           group: params.group,
           shift: params.shift,
           religionGroup: app.religionGroup || 'Islam',
-          batchCycle: resolveDefaultBatchCycle(params.className, settings.instituteRules, clsObj || undefined),
-          electiveSubjectIds: defaultMain ? [defaultMain.id] : [],
-          optionalFourthSubjectId: fourthId,
+          batchCycle:
+            app.targetAcademicYear ||
+            resolveDefaultBatchCycle(params.className, settings.instituteRules, clsObj || undefined),
+          electiveSubjectIds: app.electiveSubjectIds?.length
+            ? app.electiveSubjectIds
+            : defaultMain
+            ? [defaultMain.id]
+            : [],
+          optionalFourthSubjectId: app.optionalFourthSubjectId || fourthId,
           status: 'Active',
-          avatarUrl: '',
-          phone: app.phone || '',
-          address: '',
+          avatarUrl: app.avatarUrl ? sanitizeStudentPhotoUrl(app.avatarUrl) : '',
+          avatarPublicId: app.avatarPublicId,
+          phone: app.phone ? normalizeBdMobileInput(app.phone) : '',
+          address: app.presentAddress || '',
+          presentAddress: app.presentAddress,
+          permanentAddress: app.permanentAddress,
+          presentAddressDetail: app.presentAddressDetail,
+          permanentAddressDetail: app.permanentAddressDetail,
+          sameAsPresentAddress: app.sameAsPresentAddress,
+          previousInstitute: app.previousInstitute,
+          previousGpa: app.previousGpa,
+          customFields: app.customFields,
           registrationNumber: `REG-${new Date().getFullYear()}-${Math.floor(1000 + Math.random() * 8999)}`,
           password: '',
           passwordHash: hashPassword(admitPin),
@@ -1992,14 +2027,105 @@ export async function POST(req: NextRequest) {
           {
             $set: {
               status: 'Admitted',
+              linkedStudentId: newStudent.id,
+              linkedSystemId: newStudent.systemId,
               assignedClass: params.className,
               assignedSection: params.sectionName,
               assignedRoll: params.rollNumber,
             },
           }
         );
+
+        // Link any admission fee invoice created on application submission to the admitted student
+        const invFilter = app.paymentSummary?.invoiceId
+          ? { id: app.paymentSummary.invoiceId }
+          : { applicationId: app.id };
+        await db.collection<StudentInvoice>(COLLECTIONS.INVOICES).updateMany(invFilter, {
+          $set: {
+            studentId: newStudent.id,
+            studentName: newStudent.fullName,
+            rollNumber: newStudent.rollNumber,
+            className: newStudent.className,
+            sectionName: newStudent.sectionName,
+          },
+        });
+
         const syncVersion = await bumpSyncVersion(db, 'admissions');
         return NextResponse.json({ ok: true, data: sanitizeStudentOut(newStudent, 'admin'), syncVersion });
+      }
+
+      case 'verifyAdmissionPaymentAndFinalize': {
+        const res = await finalizeAdmissionOrReAdmission(db, {
+          applicationId: String(payload.applicationId || '').trim(),
+          verifiedBy: session?.username || 'Admin',
+          markPaid: payload.markPaid !== false,
+          paymentChannel: payload.paymentChannel as
+            | 'Cash'
+            | 'bKash'
+            | 'Nagad'
+            | 'Rocket'
+            | 'Online MFS'
+            | 'Waived'
+            | undefined,
+          trxId: typeof payload.trxId === 'string' ? payload.trxId.trim() : undefined,
+          assignedClass: typeof payload.assignedClass === 'string' ? payload.assignedClass : undefined,
+          assignedSection: typeof payload.assignedSection === 'string' ? payload.assignedSection : undefined,
+          assignedGroup: payload.assignedGroup as AcademicGroup | undefined,
+          assignedShift: payload.assignedShift as ShiftType | undefined,
+          assignedRoll: typeof payload.assignedRoll === 'number' ? payload.assignedRoll : undefined,
+          systemId: typeof payload.systemId === 'string' ? payload.systemId : undefined,
+        });
+        if (!res.ok) {
+          return NextResponse.json(
+            { error: res.error || 'Failed to verify and finalize admission.' },
+            { status: res.status || 400 }
+          );
+        }
+        const syncVersion = await bumpSyncVersion(db, 'admissions');
+        return NextResponse.json({ ok: true, data: res, syncVersion });
+      }
+
+      case 'updateClassIntakeConfig': {
+        const id = String(payload.id || '').trim();
+        const updates = (payload.updates || {}) as Partial<AcademicClass>;
+        const classesCol = db.collection<AcademicClass>(COLLECTIONS.ACADEMIC_CLASSES);
+        const existing = await classesCol.findOne({ id });
+        if (!existing) {
+          return NextResponse.json({ error: 'Class not found.' }, { status: 404 });
+        }
+        const safePatch: Partial<AcademicClass> = {};
+        if (typeof updates.openForNewAdmission === 'boolean') {
+          safePatch.openForNewAdmission = updates.openForNewAdmission;
+        }
+        if (typeof updates.openForReAdmission === 'boolean') {
+          safePatch.openForReAdmission = updates.openForReAdmission;
+        }
+        if (typeof updates.newAdmissionFee === 'number') {
+          safePatch.newAdmissionFee = Math.max(0, updates.newAdmissionFee);
+        }
+        if (typeof updates.reAdmissionFee === 'number') {
+          safePatch.reAdmissionFee = Math.max(0, updates.reAdmissionFee);
+        }
+        if (typeof updates.admissionFee === 'number') {
+          safePatch.admissionFee = Math.max(0, updates.admissionFee);
+        }
+        if (Array.isArray(updates.admissionFeeBreakdown)) {
+          safePatch.admissionFeeBreakdown = updates.admissionFeeBreakdown
+            .filter((item) => item && String(item.label || '').trim())
+            .map((item) => ({
+              label: String(item.label).trim(),
+              amount: Math.max(0, Number(item.amount) || 0),
+            }));
+        }
+        if (typeof updates.admissionSeatLimit === 'number') {
+          safePatch.admissionSeatLimit = Math.max(0, updates.admissionSeatLimit);
+        }
+        if (typeof updates.intakeYear === 'string') {
+          safePatch.intakeYear = updates.intakeYear.trim();
+        }
+        await classesCol.updateOne({ id }, { $set: safePatch });
+        const syncVersion = await bumpSyncVersion(db, 'academics');
+        return NextResponse.json({ ok: true, syncVersion });
       }
 
       case 'createExam': {

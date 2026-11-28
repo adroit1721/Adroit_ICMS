@@ -1,473 +1,870 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import Link from 'next/link';
+import {
+  AlertCircle,
+  ArrowRight,
+  CalendarX2,
+  CheckCircle2,
+  FileSearch,
+  FileText,
+  GraduationCap,
+  Printer,
+  Receipt,
+  Search,
+  UserCheck,
+  UserPlus,
+} from 'lucide-react';
 import { useERPStore } from '@/lib/store';
-import { AcademicGroup, AdmissionApplication, GenderType, ReligionGroup } from '@/lib/types';
-import { classMatchesEnabledWings, formatInstituteSessionBanner } from '@/lib/academic-helpers';
+import {
+  AdmissionApplication,
+  AdmissionFeeItem,
+  Student,
+  StudentInvoice,
+  StudentReAdmissionState,
+} from '@/lib/types';
+import {
+  classMatchesEnabledWings,
+  formatGroupSectionDisplay,
+  formatInstituteSessionBanner,
+} from '@/lib/academic-helpers';
+import { autoFormatDDMMYYYYInput, parseDDMMYYYYToISO } from '@/lib/student-schema';
 import PublicShell from '@/components/public/PublicShell';
+import StudentSchemaAdmissionForm from '@/components/common/StudentSchemaAdmissionForm';
+import AdmissionApplicationSlipModal from '@/components/common/AdmissionApplicationSlipModal';
+import DualCopyPaymentReceiptModal from '@/components/common/DualCopyPaymentReceiptModal';
+
+interface ReAdmissionLookupResponse {
+  eligible: boolean;
+  error?: string;
+  studentSummary?: {
+    fullName: string;
+    className: string;
+    rollNumber: number;
+    academicYear: string;
+  };
+  reAdmissionState?: StudentReAdmissionState;
+  prefill?: Partial<Student> & { id: string; systemId: string };
+  intake?: {
+    open: boolean;
+    feeAmount: number;
+    feeBreakdown: AdmissionFeeItem[];
+    academicYear: string;
+  };
+  existingApplication?: AdmissionApplication | null;
+  existingInvoice?: StudentInvoice | null;
+}
 
 function AdmissionsContent() {
-  const { state, addAdmissionApplication } = useERPStore();
-  const { cmsConfig, admissionFormConfig, academicClasses, instituteRules } = state;
+  const { state, refreshFromServer } = useERPStore();
+  const {
+    cmsConfig,
+    admissionFormConfig,
+    academicClasses,
+    subjects,
+    instituteRules,
+    mfsConfig,
+  } = state;
 
   const wingFilteredClasses = academicClasses.filter((c) =>
     classMatchesEnabledWings(c, instituteRules)
   );
   const effectiveClasses = wingFilteredClasses.length > 0 ? wingFilteredClasses : academicClasses;
-  const classOptions = effectiveClasses.length
-    ? effectiveClasses.map((c) => c.name)
-    : ['Grade 6', 'Grade 7', 'Grade 8', 'Grade 9', 'Grade 10'];
+  const openNewClasses = effectiveClasses.filter((c) => c.openForNewAdmission !== false);
 
-  const [applicantName, setApplicantName] = useState('');
-  const [gender, setGender] = useState<GenderType>('Male');
-  const [fatherName, setFatherName] = useState('');
-  const [motherName, setMotherName] = useState('');
-  const [phone, setPhone] = useState('');
-  const [grade, setGrade] = useState(classOptions[0] || 'Grade 9');
-  const [group, setGroup] = useState<AcademicGroup>('Science');
-  const [religionGroup, setReligionGroup] = useState<ReligionGroup>('Islam');
-  const [score, setScore] = useState('');
-  const [customAnswers, setCustomAnswers] = useState<Record<string, string>>({});
+  const [portalMode, setPortalMode] = useState<'new' | 're-admission' | 'track'>('new');
 
-  const [submittedSlip, setSubmittedSlip] = useState<AdmissionApplication | null>(null);
-  const [formError, setFormError] = useState<string | null>(null);
+  // Re-admission lookup state
+  const [prevYear, setPrevYear] = useState(
+    instituteRules?.activeAcademicYear || String(new Date().getFullYear())
+  );
+  const [prevClass, setPrevClass] = useState(effectiveClasses[0]?.name || 'Class 6');
+  const [prevRoll, setPrevRoll] = useState('');
+  const [verifyBy, setVerifyBy] = useState<'dob' | 'systemId'>('dob');
+  const [verifyDob, setVerifyDob] = useState('');
+  const [verifySystemId, setVerifySystemId] = useState('');
+  const [lookupLoading, setLookupLoading] = useState(false);
+  const [lookupError, setLookupError] = useState<string | null>(null);
+  const [lookupResult, setLookupResult] = useState<ReAdmissionLookupResponse | null>(null);
+  const [showReAdmissionForm, setShowReAdmissionForm] = useState(false);
 
-  const selectedClassName = classOptions.includes(grade) ? grade : classOptions[0];
-  const selectedClassObj = academicClasses.find((c) => c.name === selectedClassName);
-  const availableGroups: AcademicGroup[] =
-    selectedClassObj?.hasGroups === false
-      ? ['General']
-      : selectedClassObj?.groups?.length
-      ? selectedClassObj.groups
-      : ['General', 'Science', 'Business Studies', 'Humanities'];
-  const effectiveGroup: AcademicGroup = availableGroups.includes(group)
-    ? group
-    : availableGroups[0];
+  // Track application lookup state
+  const [trackCode, setTrackCode] = useState('');
+  const [trackPhone, setTrackPhone] = useState('');
+  const [trackDob, setTrackDob] = useState('');
+  const [trackLoading, setTrackLoading] = useState(false);
+  const [trackError, setTrackError] = useState<string | null>(null);
+  const [trackedResult, setTrackedResult] = useState<{
+    application: AdmissionApplication;
+    invoice: StudentInvoice | null;
+  } | null>(null);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  // Slip & Dual Receipt print modals
+  const [slipModal, setSlipModal] = useState<{
+    application: AdmissionApplication;
+    invoice: StudentInvoice | null;
+  } | null>(null);
+  const [receiptModal, setReceiptModal] = useState<{
+    application: AdmissionApplication;
+    invoice: StudentInvoice | null;
+  } | null>(null);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const params = new URLSearchParams(window.location.search);
+    const code = params.get('code');
+    const mode = params.get('mode');
+    if (code) {
+      setPortalMode('track');
+      setTrackCode(code.toUpperCase());
+    } else if (mode === 're-admission') {
+      setPortalMode('re-admission');
+    }
+  }, []);
+
+  const handleReAdmissionLookup = async (e: React.FormEvent) => {
     e.preventDefault();
-    setFormError(null);
+    setLookupError(null);
+    setLookupResult(null);
+    setShowReAdmissionForm(false);
 
-    if (!applicantName.trim() || !fatherName.trim() || !phone.trim()) {
-      setFormError('Please fill in Applicant Name, Father Name, and Guardian Phone.');
+    if (!prevClass || !prevRoll.trim()) {
+      setLookupError('Enter your Previous Class and Previous Roll Number.');
       return;
     }
 
-    for (const field of admissionFormConfig.customFields) {
-      if (field.required && !(customAnswers[field.label] || '').trim()) {
-        setFormError(`Please complete required field: ${field.label}`);
+    let dobIso = '';
+    if (verifyBy === 'dob') {
+      dobIso = parseDDMMYYYYToISO(verifyDob) || verifyDob.trim();
+      if (!dobIso) {
+        setLookupError('Enter Date of Birth in DD/MM/YYYY format.');
         return;
       }
+    } else if (!verifySystemId.trim()) {
+      setLookupError('Enter your Student System ID.');
+      return;
     }
 
-    const created = addAdmissionApplication({
-      applicantName: applicantName.trim(),
-      gender,
-      fatherName: fatherName.trim(),
-      motherName: motherName.trim(),
-      phone: phone.trim(),
-      grade: selectedClassName,
-      group: effectiveGroup,
-      religionGroup,
-      score: score.trim() || 'Awaiting Assessment',
-      customAnswers,
-    });
+    setLookupLoading(true);
+    try {
+      const res = await fetch('/api/admissions/re-admission-lookup', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Requested-With': 'erp-client',
+        },
+        body: JSON.stringify({
+          previousYear: prevYear.trim(),
+          previousClass: prevClass,
+          previousRoll: Number(prevRoll),
+          ...(verifyBy === 'dob' ? { dateOfBirth: dobIso } : { systemId: verifySystemId.trim() }),
+        }),
+      });
+      const json = (await res.json()) as ReAdmissionLookupResponse;
+      if (!res.ok) {
+        setLookupError(json.error || 'Unable to verify student record.');
+        return;
+      }
+      setLookupResult(json);
+    } catch (err) {
+      setLookupError(err instanceof Error ? err.message : 'Lookup network error.');
+    } finally {
+      setLookupLoading(false);
+    }
+  };
 
-    setSubmittedSlip(created);
-    setApplicantName('');
-    setFatherName('');
-    setMotherName('');
-    setPhone('');
-    setScore('');
-    setCustomAnswers({});
+  const handleTrackLookup = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setTrackError(null);
+    setTrackedResult(null);
+
+    if (!trackCode.trim()) {
+      setTrackError('Enter your Application Code (e.g. APP-8901).');
+      return;
+    }
+    if (!trackPhone.trim() && !trackDob.trim()) {
+      setTrackError('Provide either your Registered Mobile Number OR Date of Birth.');
+      return;
+    }
+
+    const dobIso = trackDob.trim() ? parseDDMMYYYYToISO(trackDob) || trackDob.trim() : '';
+
+    setTrackLoading(true);
+    try {
+      const res = await fetch('/api/admissions/track', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Requested-With': 'erp-client',
+        },
+        body: JSON.stringify({
+          applicationCode: trackCode.trim().toUpperCase(),
+          phone: trackPhone.trim() || undefined,
+          dateOfBirth: dobIso || undefined,
+        }),
+      });
+      const json = (await res.json()) as {
+        ok?: boolean;
+        error?: string;
+        application?: AdmissionApplication;
+        invoice?: StudentInvoice | null;
+      };
+      if (!res.ok || !json.ok || !json.application) {
+        setTrackError(json.error || 'Could not locate matching admission record.');
+        return;
+      }
+      setTrackedResult({
+        application: json.application,
+        invoice: json.invoice || null,
+      });
+    } catch (err) {
+      setTrackError(err instanceof Error ? err.message : 'Unable to track application.');
+    } finally {
+      setTrackLoading(false);
+    }
   };
 
   return (
-    <div className="w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-10 py-10 space-y-10">
-      {/* Status Banner */}
-      <section className="rounded-[2rem] bg-white/80 backdrop-blur-2xl border border-outline-variant/25 shadow-[0_16px_40px_-8px_rgba(19,27,46,0.05)] p-8 sm:p-10">
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
-          <div className="space-y-2 max-w-2xl">
+    <div className="w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-10 py-8 sm:py-10 space-y-8">
+      {/* Portal Hero Banner */}
+      <section className="rounded-3xl bg-white/85 backdrop-blur-2xl border border-outline-variant/25 shadow-sm p-6 sm:p-8 no-print">
+        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6">
+          <div className="space-y-2.5 max-w-2xl">
             <span
-              className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold ${
+              className={`inline-flex items-center gap-2 px-3 py-1 rounded-lg text-xs font-bold border ${
                 cmsConfig.isAdmissionOpen
-                  ? 'bg-emerald-100 text-emerald-900 border border-emerald-200'
-                  : 'bg-amber-100 text-amber-900 border border-amber-200'
+                  ? 'bg-emerald-50 text-emerald-900 border-emerald-200'
+                  : 'bg-amber-50 text-amber-900 border-amber-200'
               }`}
             >
               <span
                 className={`w-2 h-2 rounded-full ${
-                  cmsConfig.isAdmissionOpen ? 'bg-emerald-600 animate-pulse' : 'bg-amber-600'
+                  cmsConfig.isAdmissionOpen ? 'bg-emerald-600' : 'bg-amber-600'
                 }`}
               />
               {cmsConfig.isAdmissionOpen
-                ? `${formatInstituteSessionBanner(instituteRules)} — Admissions Open`
-                : 'Admissions Window Currently Paused'}
+                ? `${formatInstituteSessionBanner(instituteRules)} — Admissions & Re-Admissions Live`
+                : 'New Intake Window Paused · Re-Admission & Slip Lookup Available'}
             </span>
-            <h1 className="font-display-lg text-3xl sm:text-4xl font-bold text-on-surface tracking-tight">
-              Online Admission Portal
+
+            <h1 className="font-display-lg text-2xl sm:text-4xl font-bold text-on-surface tracking-tight">
+              {admissionFormConfig.heading || 'Online Admission & Re-Admission Portal'}
             </h1>
-            <p className="text-sm text-on-surface-variant leading-relaxed">
+            <p className="text-xs sm:text-sm text-on-surface-variant leading-relaxed">
               {admissionFormConfig.instructions}
             </p>
           </div>
-          <div className="flex flex-col gap-2 text-xs text-on-surface-variant bg-surface-container-low/80 p-4 rounded-2xl border border-outline-variant/30 shrink-0">
-            <span className="font-semibold text-on-surface">Admissions Helpline</span>
-            <span>{cmsConfig.phone}</span>
-            <span>{cmsConfig.email}</span>
+
+          <div className="p-4 rounded-2xl bg-surface-container-low border border-outline-variant/25 text-xs space-y-1 shrink-0 min-w-[230px]">
+            <div className="font-bold text-on-surface">Admissions &amp; Accounts Desk</div>
+            <div className="font-mono text-on-surface-variant">{cmsConfig.phone}</div>
+            <div className="text-on-surface-variant">{cmsConfig.email}</div>
+            <div className="pt-1.5 border-t border-outline-variant/20 text-[11px] text-on-surface-variant">
+              Signatory: <strong className="text-on-surface">{admissionFormConfig.signatoryName}</strong>
+            </div>
           </div>
+        </div>
+
+        {/* 3-Mode Selector */}
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mt-6 pt-5 border-t border-outline-variant/20">
+          <button
+            type="button"
+            onClick={() => setPortalMode('new')}
+            className={`p-3.5 rounded-2xl border text-left transition-all cursor-pointer flex items-center gap-3 ${
+              portalMode === 'new'
+                ? 'bg-primary-container text-on-primary border-primary-container shadow-xs'
+                : 'bg-surface-container-low/70 border-outline-variant/30 text-on-surface hover:bg-surface-container-low'
+            }`}
+          >
+            <UserPlus className="w-5 h-5 shrink-0" />
+            <div>
+              <div className="text-xs font-bold">New Admission</div>
+              <div className={`text-[11px] ${portalMode === 'new' ? 'text-on-primary/80' : 'text-on-surface-variant'}`}>
+                Apply to any open class with full form
+              </div>
+            </div>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setPortalMode('re-admission')}
+            className={`p-3.5 rounded-2xl border text-left transition-all cursor-pointer flex items-center gap-3 ${
+              portalMode === 're-admission'
+                ? 'bg-primary-container text-on-primary border-primary-container shadow-xs'
+                : 'bg-surface-container-low/70 border-outline-variant/30 text-on-surface hover:bg-surface-container-low'
+            }`}
+          >
+            <UserCheck className="w-5 h-5 shrink-0" />
+            <div>
+              <div className="text-xs font-bold">Re-admission (Promoted)</div>
+              <div className={`text-[11px] ${portalMode === 're-admission' ? 'text-on-primary/80' : 'text-on-surface-variant'}`}>
+                Previous roll lookup &amp; upper class enroll
+              </div>
+            </div>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setPortalMode('track')}
+            className={`p-3.5 rounded-2xl border text-left transition-all cursor-pointer flex items-center gap-3 ${
+              portalMode === 'track'
+                ? 'bg-primary-container text-on-primary border-primary-container shadow-xs'
+                : 'bg-surface-container-low/70 border-outline-variant/30 text-on-surface hover:bg-surface-container-low'
+            }`}
+          >
+            <FileSearch className="w-5 h-5 shrink-0" />
+            <div>
+              <div className="text-xs font-bold">Track &amp; Print Slip / Receipt</div>
+              <div className={`text-[11px] ${portalMode === 'track' ? 'text-on-primary/80' : 'text-on-surface-variant'}`}>
+                Reprint A4 form &amp; Dual-Copy receipt
+              </div>
+            </div>
+          </button>
         </div>
       </section>
 
-      {!cmsConfig.isAdmissionOpen ? (
-        <section className="rounded-[2rem] bg-white/80 backdrop-blur-2xl border border-outline-variant/25 p-10 text-center space-y-4">
-          <div className="w-14 h-14 rounded-2xl bg-amber-100 text-amber-800 flex items-center justify-center mx-auto">
-            <span className="material-symbols-outlined text-[28px]">event_busy</span>
-          </div>
-          <h2 className="text-xl font-bold text-on-surface">
-            Online Intake Is Currently Closed
-          </h2>
-          <p className="text-sm text-on-surface-variant max-w-xl mx-auto">
-            The online admission form is temporarily closed between academic intake cycles. Please check the Notice Board for upcoming merit test dates or contact the Registrar&apos;s office.
-          </p>
-          <div className="pt-2">
-            <Link
-              href="/notices"
-              className="inline-flex items-center gap-2 px-5 py-2.5 rounded-full bg-primary-container text-on-primary text-xs font-semibold"
-            >
-              View Admission Circulars
-            </Link>
-          </div>
-        </section>
-      ) : submittedSlip ? (
-        /* PRINTABLE APPLICATION SLIP */
-        <section className="max-w-2xl mx-auto rounded-[2rem] bg-white border border-outline-variant/40 shadow-xl p-8 space-y-6">
-          <div className="flex items-center justify-between border-b border-outline-variant/30 pb-4">
-            <div className="flex items-center gap-3">
-              <div className="w-11 h-11 rounded-xl bg-emerald-100 text-emerald-800 flex items-center justify-center">
-                <span className="material-symbols-outlined text-[24px]">check_circle</span>
+      {/* MODE 1: NEW ADMISSION */}
+      {portalMode === 'new' && (
+        <section className="space-y-6 no-print">
+          {!cmsConfig.isAdmissionOpen ? (
+            <div className="rounded-3xl bg-white border border-outline-variant/25 p-10 text-center space-y-4">
+              <div className="w-14 h-14 rounded-2xl bg-amber-100 text-amber-800 flex items-center justify-center mx-auto">
+                <CalendarX2 className="w-7 h-7" />
               </div>
-              <div>
-                <h2 className="text-lg font-bold text-on-surface">
-                  Application Registered Successfully
-                </h2>
-                <p className="text-xs text-on-surface-variant">
-                  Synchronized with Registrar Admission Queue
-                </p>
+              <h2 className="text-xl font-bold text-on-surface">
+                New Student Admission Intake Is Currently Paused
+              </h2>
+              <p className="text-sm text-on-surface-variant max-w-xl mx-auto">
+                Online new admission applications are currently paused between academic intake windows. Existing promoted students may use the{' '}
+                <strong>Re-admission (Promoted)</strong> tab above.
+              </p>
+              <div className="pt-2">
+                <Link
+                  href="/notices"
+                  className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-primary-container text-on-primary text-xs font-bold"
+                >
+                  View Admission Circulars
+                </Link>
               </div>
             </div>
-            <span className="px-3 py-1 rounded-full bg-primary-fixed text-primary-container font-mono font-bold text-xs">
-              {submittedSlip.applicationCode}
-            </span>
-          </div>
-
-          <div className="p-5 rounded-2xl bg-surface-container-low/70 border border-outline-variant/30 grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
-            <div>
-              <span className="text-on-surface-variant block">Applicant Full Name</span>
-              <span className="font-bold text-sm text-on-surface">{submittedSlip.applicantName}</span>
-            </div>
-            <div>
-              <span className="text-on-surface-variant block">Applying Class &amp; Group</span>
-              <span className="font-bold text-sm text-on-surface">
-                {submittedSlip.grade} ({submittedSlip.group || 'General'})
-              </span>
-            </div>
-            <div>
-              <span className="text-on-surface-variant block">Gender</span>
-              <span className="font-semibold text-on-surface">{submittedSlip.gender || '—'}</span>
-            </div>
-            <div>
-              <span className="text-on-surface-variant block">Father&apos;s Name</span>
-              <span className="font-semibold text-on-surface">{submittedSlip.fatherName || '—'}</span>
-            </div>
-            <div>
-              <span className="text-on-surface-variant block">Guardian Contact</span>
-              <span className="font-mono font-semibold text-on-surface">{submittedSlip.phone || '—'}</span>
-            </div>
-            <div>
-              <span className="text-on-surface-variant block">Religion</span>
-              <span className="font-semibold text-on-surface">{submittedSlip.religionGroup || '—'}</span>
-            </div>
-            <div>
-              <span className="text-on-surface-variant block">Current Review Status</span>
-              <span className="inline-block mt-0.5 px-2.5 py-0.5 rounded-full bg-amber-100 text-amber-900 font-semibold">
-                {submittedSlip.status}
-              </span>
-            </div>
-            {submittedSlip.customAnswers &&
-              Object.entries(submittedSlip.customAnswers).map(([label, val]) =>
-                val ? (
-                  <div key={label}>
-                    <span className="text-on-surface-variant block">{label}</span>
-                    <span className="font-semibold text-on-surface">{val}</span>
+          ) : (
+            <>
+              {/* Class Availability & Fee Strip */}
+              <div className="rounded-2xl bg-white border border-outline-variant/25 p-4 space-y-3">
+                <div className="flex items-center justify-between">
+                  <div className="text-xs font-bold text-on-surface flex items-center gap-2">
+                    <GraduationCap className="w-4 h-4 text-primary-container" />
+                    Open Classes &amp; Admission Fee Schedule
                   </div>
-                ) : null
-              )}
-          </div>
+                  <span className="text-[11px] font-semibold text-on-surface-variant">
+                    {openNewClasses.length} / {effectiveClasses.length} classes open
+                  </span>
+                </div>
+                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2.5 text-xs">
+                  {effectiveClasses.map((cls) => {
+                    const isOpen = cls.openForNewAdmission !== false;
+                    const fee = cls.newAdmissionFee ?? cls.admissionFee ?? 0;
+                    return (
+                      <div
+                        key={cls.id}
+                        className={`p-2.5 rounded-xl border ${
+                          isOpen
+                            ? 'bg-surface-container-low border-outline-variant/25'
+                            : 'bg-surface-container/50 border-outline-variant/20 opacity-60'
+                        }`}
+                      >
+                        <div className="font-bold text-on-surface truncate">{cls.name}</div>
+                        <div className="flex items-center justify-between mt-1 text-[11px]">
+                          <span className={isOpen ? 'text-emerald-800 font-semibold' : 'text-on-surface-variant'}>
+                            {isOpen ? 'Open' : 'Closed'}
+                          </span>
+                          <span className="font-mono font-bold tabular-nums">
+                            {fee > 0 ? `৳${fee.toLocaleString()}` : '৳0'}
+                          </span>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
 
-          <div className="pt-4 border-t border-outline-variant/20 flex items-end justify-between text-xs">
-            <span className="text-on-surface-variant">Official Digital Acknowledgement Slip</span>
-            <div className="text-right">
-              <div className="font-bold text-on-surface">{admissionFormConfig.signatoryName}</div>
-              <div className="text-[11px] text-on-surface-variant">{admissionFormConfig.signatoryTitle}</div>
-            </div>
-          </div>
-
-          <div className="flex flex-wrap items-center justify-between gap-3 pt-2 no-print">
-            <button
-              type="button"
-              onClick={() => setSubmittedSlip(null)}
-              className="px-5 py-2.5 rounded-full bg-surface-container-low hover:bg-surface-container text-on-surface text-xs font-semibold border border-outline-variant/40 cursor-pointer"
-            >
-              Submit Another Application
-            </button>
-            <button
-              type="button"
-              onClick={() => window.print()}
-              className="inline-flex items-center gap-2 px-5 py-2.5 rounded-full bg-primary-container hover:bg-primary text-on-primary text-xs font-semibold shadow-sm cursor-pointer"
-            >
-              <span className="material-symbols-outlined text-[18px]">print</span>
-              Print Application Slip
-            </button>
-          </div>
+              {/* Unified Full Student Schema Form */}
+              <StudentSchemaAdmissionForm
+                mode="new"
+                actor="public"
+                academicClasses={effectiveClasses}
+                subjects={subjects}
+                instituteRules={instituteRules}
+                admissionFormConfig={admissionFormConfig}
+                mfsConfig={mfsConfig}
+                onSuccess={(res) => {
+                  void refreshFromServer();
+                  setSlipModal({
+                    application: res.application,
+                    invoice: res.invoice,
+                  });
+                }}
+              />
+            </>
+          )}
         </section>
-      ) : (
-        <section className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
-          {/* Application Guidelines */}
-          <div className="lg:col-span-4 rounded-[2rem] bg-white/75 backdrop-blur-2xl border border-outline-variant/25 p-6 sm:p-8 space-y-5">
-            <h2 className="text-lg font-bold text-on-surface">Admission Guidelines</h2>
-            <ul className="space-y-3 text-xs text-on-surface-variant leading-relaxed">
-              <li className="flex items-start gap-2.5">
-                <span className="material-symbols-outlined text-[18px] text-primary-container shrink-0">
-                  looks_one
-                </span>
-                <span>
-                  Complete accurate candidate details matching birth certificate and previous transcript records.
-                </span>
-              </li>
-              <li className="flex items-start gap-2.5">
-                <span className="material-symbols-outlined text-[18px] text-primary-container shrink-0">
-                  looks_two
-                </span>
-                <span>
-                  Select your intended NCTB Academic Group (Science, Humanities, Business Studies) for Grade 9–12.
-                </span>
-              </li>
-              <li className="flex items-start gap-2.5">
-                <span className="material-symbols-outlined text-[18px] text-primary-container shrink-0">
-                  looks_3
-                </span>
-                <span>
-                  Retain your generated <span className="font-mono font-semibold text-on-surface">APP-XXXX</span> slip for admission assessment verification.
-                </span>
-              </li>
-            </ul>
-            <div className="pt-4 border-t border-outline-variant/20 text-xs">
-              <span className="block text-[10px] uppercase tracking-widest text-on-surface-variant font-semibold">
-                Authorized Signatory
-              </span>
-              <span className="font-bold text-on-surface block mt-1">{admissionFormConfig.signatoryName}</span>
-              <span className="text-[11px] text-on-surface-variant">{admissionFormConfig.signatoryTitle}</span>
-            </div>
-          </div>
+      )}
 
-          {/* Online Application Form */}
+      {/* MODE 2: RE-ADMISSION (PROMOTED STUDENTS) */}
+      {portalMode === 're-admission' && (
+        <section className="space-y-6 no-print">
+          {/* Step 1: Verified Promoted Student Lookup */}
           <form
-            onSubmit={handleSubmit}
-            className="lg:col-span-8 rounded-[2rem] bg-white/85 backdrop-blur-2xl border border-outline-variant/25 shadow-sm p-6 sm:p-8 space-y-5"
+            onSubmit={handleReAdmissionLookup}
+            className="rounded-3xl bg-white border border-outline-variant/25 p-6 sm:p-8 space-y-5 shadow-xs"
           >
-            <h2 className="text-xl font-bold text-on-surface border-b border-outline-variant/20 pb-3">
-              {admissionFormConfig.heading}
-            </h2>
+            <div className="border-b border-outline-variant/20 pb-3">
+              <h2 className="text-lg font-bold text-on-surface flex items-center gap-2">
+                <UserCheck className="w-5 h-5 text-primary-container" />
+                Promoted Student Verification &amp; Re-Admission Lookup
+              </h2>
+              <p className="text-xs text-on-surface-variant mt-0.5">
+                Enter your previous Academic Year, Previous Class, and Previous Roll Number along with Date of Birth or Student ID to check promotion eligibility and load your pre-filled Re-admission form.
+              </p>
+            </div>
 
-            {formError && (
-              <div className="p-3.5 rounded-2xl bg-error-container text-on-error-container text-xs font-medium flex items-center gap-2">
-                <span className="material-symbols-outlined text-[18px]">error</span>
-                <span>{formError}</span>
+            {lookupError && (
+              <div className="p-3.5 rounded-xl bg-error-container border border-error/30 text-on-error-container text-xs font-semibold flex items-center gap-2">
+                <AlertCircle className="w-4 h-4 shrink-0" />
+                <span>{lookupError}</span>
               </div>
             )}
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div className="space-y-1.5">
-                <label className="text-xs font-semibold text-on-surface block">
-                  Applicant Full Name *
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3.5 text-xs items-end">
+              <div>
+                <label className="block font-semibold text-on-surface mb-1">
+                  Previous Academic Year *
                 </label>
                 <input
                   type="text"
                   required
-                  value={applicantName}
-                  onChange={(e) => setApplicantName(e.target.value)}
-                  placeholder="e.g. Nusrat Jahan"
-                  className="w-full px-3.5 py-2.5 rounded-xl border border-outline-variant/60 bg-surface-container-low text-sm focus:outline-hidden focus:ring-2 focus:ring-primary-container"
+                  value={prevYear}
+                  onChange={(e) => setPrevYear(e.target.value)}
+                  placeholder="e.g. 2026"
+                  className="w-full px-3 py-2.5 rounded-xl bg-surface-container-low border border-outline-variant/40 text-sm font-mono font-bold tabular-nums"
                 />
               </div>
 
-              <div className="space-y-1.5">
-                <label className="text-xs font-semibold text-on-surface block">
-                  Gender *
-                </label>
+              <div>
+                <label className="block font-semibold text-on-surface mb-1">Previous Class *</label>
                 <select
-                  value={gender}
-                  onChange={(e) => setGender(e.target.value as GenderType)}
-                  className="w-full px-3.5 py-2.5 rounded-xl border border-outline-variant/60 bg-surface-container-low text-sm focus:outline-hidden focus:ring-2 focus:ring-primary-container"
+                  value={prevClass}
+                  onChange={(e) => setPrevClass(e.target.value)}
+                  className="w-full px-3 py-2.5 rounded-xl bg-surface-container-low border border-outline-variant/40 text-sm font-semibold"
                 >
-                  <option value="Male">Male</option>
-                  <option value="Female">Female</option>
-                </select>
-              </div>
-
-              <div className="space-y-1.5">
-                <label className="text-xs font-semibold text-on-surface block">
-                  Father&apos;s Name *
-                </label>
-                <input
-                  type="text"
-                  required
-                  value={fatherName}
-                  onChange={(e) => setFatherName(e.target.value)}
-                  placeholder="Father's full name"
-                  className="w-full px-3.5 py-2.5 rounded-xl border border-outline-variant/60 bg-surface-container-low text-sm focus:outline-hidden focus:ring-2 focus:ring-primary-container"
-                />
-              </div>
-
-              <div className="space-y-1.5">
-                <label className="text-xs font-semibold text-on-surface block">
-                  Mother&apos;s Name
-                </label>
-                <input
-                  type="text"
-                  value={motherName}
-                  onChange={(e) => setMotherName(e.target.value)}
-                  placeholder="Mother's full name"
-                  className="w-full px-3.5 py-2.5 rounded-xl border border-outline-variant/60 bg-surface-container-low text-sm focus:outline-hidden focus:ring-2 focus:ring-primary-container"
-                />
-              </div>
-
-              <div className="space-y-1.5">
-                <label className="text-xs font-semibold text-on-surface block">
-                  Guardian Mobile Number *
-                </label>
-                <input
-                  type="tel"
-                  required
-                  value={phone}
-                  onChange={(e) => setPhone(e.target.value)}
-                  placeholder="e.g. +880 1711-000000"
-                  className="w-full px-3.5 py-2.5 rounded-xl border border-outline-variant/60 bg-surface-container-low text-sm font-mono focus:outline-hidden focus:ring-2 focus:ring-primary-container"
-                />
-              </div>
-
-              <div className="space-y-1.5">
-                <label className="text-xs font-semibold text-on-surface block">
-                  Applying Class *
-                </label>
-                <select
-                  value={selectedClassName}
-                  onChange={(e) => {
-                    const nextClsName = e.target.value;
-                    setGrade(nextClsName);
-                    const nextClsObj = academicClasses.find((c) => c.name === nextClsName);
-                    const nextGroups =
-                      nextClsObj?.hasGroups === false
-                        ? (['General'] as AcademicGroup[])
-                        : nextClsObj?.groups?.length
-                        ? nextClsObj.groups
-                        : (['General', 'Science', 'Business Studies', 'Humanities'] as AcademicGroup[]);
-                    if (!nextGroups.includes(group)) {
-                      setGroup(nextGroups[0]);
-                    }
-                  }}
-                  className="w-full px-3.5 py-2.5 rounded-xl border border-outline-variant/60 bg-surface-container-low text-sm focus:outline-hidden focus:ring-2 focus:ring-primary-container"
-                >
-                  {classOptions.map((clsName) => (
-                    <option key={clsName} value={clsName}>
-                      {clsName}
+                  {effectiveClasses.map((c) => (
+                    <option key={c.id} value={c.name}>
+                      {c.name}
                     </option>
                   ))}
                 </select>
               </div>
 
-              <div className="space-y-1.5">
-                <label className="text-xs font-semibold text-on-surface block">
-                  Academic Group
-                </label>
-                {selectedClassObj?.hasGroups === false ? (
-                  <div className="w-full px-3.5 py-2.5 rounded-xl border border-outline-variant/40 bg-surface-container text-sm font-medium text-on-surface-variant">
-                    General (Single Track Class)
-                  </div>
-                ) : (
-                  <select
-                    value={effectiveGroup}
-                    onChange={(e) => setGroup(e.target.value as AcademicGroup)}
-                    className="w-full px-3.5 py-2.5 rounded-xl border border-outline-variant/60 bg-surface-container-low text-sm focus:outline-hidden focus:ring-2 focus:ring-primary-container"
-                  >
-                    {availableGroups.map((grp) => (
-                      <option key={grp} value={grp}>
-                        {grp}
-                      </option>
-                    ))}
-                  </select>
-                )}
-              </div>
-
-              <div className="space-y-1.5">
-                <label className="text-xs font-semibold text-on-surface block">
-                  Religion / Moral Education Track
-                </label>
-                <select
-                  value={religionGroup}
-                  onChange={(e) => setReligionGroup(e.target.value as ReligionGroup)}
-                  className="w-full px-3.5 py-2.5 rounded-xl border border-outline-variant/60 bg-surface-container-low text-sm focus:outline-hidden focus:ring-2 focus:ring-primary-container"
-                >
-                  <option value="Islam">Islam</option>
-                  <option value="Hinduism">Hinduism</option>
-                  <option value="Buddhism">Buddhism</option>
-                  <option value="Christianity">Christianity</option>
-                </select>
-              </div>
-
-              <div className="space-y-1.5 sm:col-span-2">
-                <label className="text-xs font-semibold text-on-surface block">
-                  Previous Examination Score / GPA (Optional)
-                </label>
+              <div>
+                <label className="block font-semibold text-on-surface mb-1">Previous Roll No. *</label>
                 <input
-                  type="text"
-                  value={score}
-                  onChange={(e) => setScore(e.target.value)}
-                  placeholder="e.g. GPA 5.00 or 94/100"
-                  className="w-full px-3.5 py-2.5 rounded-xl border border-outline-variant/60 bg-surface-container-low text-sm focus:outline-hidden focus:ring-2 focus:ring-primary-container"
+                  type="number"
+                  min={1}
+                  required
+                  value={prevRoll}
+                  onChange={(e) => setPrevRoll(e.target.value)}
+                  placeholder="e.g. 1"
+                  className="w-full px-3 py-2.5 rounded-xl bg-surface-container-low border border-outline-variant/40 text-sm font-mono font-bold tabular-nums"
                 />
               </div>
 
-              {admissionFormConfig.customFields.map((field) => (
-                <div key={field.id} className="space-y-1.5">
-                  <label className="text-xs font-semibold text-on-surface block">
-                    {field.label} {field.required ? '*' : '(Optional)'}
+              <div>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="font-semibold text-on-surface">
+                    {verifyBy === 'dob' ? 'Date of Birth *' : 'Student System ID *'}
                   </label>
+                  <button
+                    type="button"
+                    onClick={() => setVerifyBy(verifyBy === 'dob' ? 'systemId' : 'dob')}
+                    className="text-[11px] font-bold text-primary-container hover:underline cursor-pointer"
+                  >
+                    Use {verifyBy === 'dob' ? 'Student ID' : 'DOB'}
+                  </button>
+                </div>
+                {verifyBy === 'dob' ? (
                   <input
                     type="text"
-                    required={field.required}
-                    value={customAnswers[field.label] || ''}
-                    onChange={(e) =>
-                      setCustomAnswers((prev) => ({ ...prev, [field.label]: e.target.value }))
-                    }
-                    className="w-full px-3.5 py-2.5 rounded-xl border border-outline-variant/60 bg-surface-container-low text-sm focus:outline-hidden focus:ring-2 focus:ring-primary-container"
+                    required
+                    value={verifyDob}
+                    onChange={(e) => setVerifyDob(autoFormatDDMMYYYYInput(e.target.value))}
+                    placeholder="DD/MM/YYYY"
+                    className="w-full px-3 py-2.5 rounded-xl bg-surface-container-low border border-outline-variant/40 text-sm font-mono tabular-nums"
                   />
-                </div>
-              ))}
-            </div>
+                ) : (
+                  <input
+                    type="text"
+                    required
+                    value={verifySystemId}
+                    onChange={(e) => setVerifySystemId(e.target.value.toUpperCase())}
+                    placeholder="e.g. AG260001"
+                    className="w-full px-3 py-2.5 rounded-xl bg-surface-container-low border border-outline-variant/40 text-sm font-mono uppercase"
+                  />
+                )}
+              </div>
 
-            <div className="pt-2">
-              <button
-                type="submit"
-                className="w-full py-3 rounded-full bg-primary-container hover:bg-primary text-on-primary text-sm font-semibold shadow-sm transition-colors cursor-pointer"
-              >
-                Submit Online Admission Application
-              </button>
+              <div>
+                <button
+                  type="submit"
+                  disabled={lookupLoading}
+                  className="w-full py-2.5 px-4 rounded-xl bg-primary-container hover:bg-primary disabled:opacity-50 text-on-primary text-xs font-bold inline-flex items-center justify-center gap-2 cursor-pointer"
+                >
+                  <Search className="w-4 h-4" />
+                  {lookupLoading ? 'Checking...' : 'Check Promotion'}
+                </button>
+              </div>
             </div>
           </form>
+
+          {/* Lookup Result Panel */}
+          {lookupResult && !lookupResult.eligible && (
+            <div className="rounded-2xl bg-amber-50 border border-amber-200 p-6 space-y-2 text-xs text-amber-950">
+              <div className="font-bold text-sm">
+                Promotion Not Queued for Re-Admission Yet
+              </div>
+              <p>
+                Student <strong>{lookupResult.studentSummary?.fullName}</strong> (Class{' '}
+                <strong>{lookupResult.studentSummary?.className}</strong>, Roll{' '}
+                <strong className="font-mono">#{lookupResult.studentSummary?.rollNumber}</strong>) is not currently marked as{' '}
+                <strong>Pending Re-admission</strong>. {lookupResult.error}
+              </p>
+            </div>
+          )}
+
+          {lookupResult?.eligible && lookupResult.reAdmissionState && lookupResult.prefill && (
+            <div className="rounded-3xl bg-white border border-emerald-200 p-6 space-y-4 shadow-xs text-xs">
+              <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                <div className="space-y-1">
+                  <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-lg bg-emerald-100 text-emerald-900 font-bold text-[11px]">
+                    <CheckCircle2 className="w-3.5 h-3.5" />
+                    {lookupResult.reAdmissionState.status}
+                  </span>
+                  <h3 className="text-lg font-bold text-on-surface">
+                    {lookupResult.prefill.fullName}{' '}
+                    <span className="font-mono text-xs text-on-surface-variant">
+                      ({lookupResult.prefill.systemId})
+                    </span>
+                  </h3>
+                  <div className="flex flex-wrap items-center gap-2 text-on-surface-variant">
+                    <span>
+                      {lookupResult.reAdmissionState.sourceAcademicYear} &bull;{' '}
+                      <strong>{lookupResult.reAdmissionState.sourceClassName}</strong> (Roll #
+                      {lookupResult.reAdmissionState.sourceRollNumber})
+                    </span>
+                    <ArrowRight className="w-4 h-4 text-emerald-700" />
+                    <span className="text-emerald-900 font-bold">
+                      {lookupResult.reAdmissionState.targetAcademicYear} &bull;{' '}
+                      {lookupResult.reAdmissionState.targetClassName} (
+                      {formatGroupSectionDisplay(
+                        lookupResult.reAdmissionState.targetGroup,
+                        lookupResult.reAdmissionState.targetSectionName
+                      )}
+                      ) &bull; New Roll #{lookupResult.reAdmissionState.targetRollNumber}
+                    </span>
+                  </div>
+                </div>
+
+                <div className="flex flex-wrap items-center gap-2.5 shrink-0">
+                  <div className="px-4 py-2 rounded-xl bg-surface-container-low border border-outline-variant/25 text-right">
+                    <span className="text-[10px] uppercase tracking-wider text-on-surface-variant block">
+                      Re-admission Fee
+                    </span>
+                    <span className="text-base font-bold font-mono tabular-nums text-primary-container">
+                      {lookupResult.intake && lookupResult.intake.feeAmount > 0
+                        ? `৳${lookupResult.intake.feeAmount.toLocaleString()}`
+                        : 'Waived / Free'}
+                    </span>
+                  </div>
+
+                  {lookupResult.reAdmissionState.status === 'Pending Re-admission' &&
+                    lookupResult.intake?.open !== false && (
+                      <button
+                        type="button"
+                        onClick={() => setShowReAdmissionForm(true)}
+                        className="inline-flex items-center gap-2 px-5 py-3 rounded-xl bg-primary-container hover:bg-primary text-on-primary text-xs font-bold shadow-sm cursor-pointer"
+                      >
+                        <UserCheck className="w-4 h-4" />
+                        Re-admission to {lookupResult.reAdmissionState.targetClassName}
+                      </button>
+                    )}
+
+                  {lookupResult.existingApplication && (
+                    <>
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setSlipModal({
+                            application: lookupResult.existingApplication!,
+                            invoice: lookupResult.existingInvoice || null,
+                          })
+                        }
+                        className="inline-flex items-center gap-1.5 px-4 py-2.5 rounded-xl bg-secondary text-on-secondary text-xs font-bold cursor-pointer"
+                      >
+                        <Printer className="w-4 h-4" />
+                        Print Re-admission Slip
+                      </button>
+                      {(lookupResult.existingInvoice ||
+                        (lookupResult.existingApplication.paymentSummary?.feeAmount || 0) > 0) && (
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setReceiptModal({
+                              application: lookupResult.existingApplication!,
+                              invoice: lookupResult.existingInvoice || null,
+                            })
+                          }
+                          className="inline-flex items-center gap-1.5 px-4 py-2.5 rounded-xl bg-surface-container hover:bg-surface-container-high text-on-surface text-xs font-bold cursor-pointer"
+                        >
+                          <Receipt className="w-4 h-4" />
+                          Dual-Copy Receipt
+                        </button>
+                      )}
+                    </>
+                  )}
+                </div>
+              </div>
+
+              {lookupResult.intake?.open === false && (
+                <div className="p-3 rounded-xl bg-amber-50 border border-amber-200 text-amber-900 font-semibold">
+                  Online Re-admission window for {lookupResult.reAdmissionState.targetClassName} is currently closed. Please visit the Institute Office.
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Step 2: Pre-Filled Unified Re-Admission Form */}
+          {showReAdmissionForm &&
+            lookupResult?.eligible &&
+            lookupResult.prefill &&
+            lookupResult.reAdmissionState && (
+              <div className="space-y-3">
+                <div className="flex items-center justify-between px-2">
+                  <h3 className="text-base font-bold text-on-surface">
+                    Complete Re-Admission Form ({lookupResult.reAdmissionState.targetAcademicYear})
+                  </h3>
+                  <button
+                    type="button"
+                    onClick={() => setShowReAdmissionForm(false)}
+                    className="text-xs font-semibold text-on-surface-variant hover:text-on-surface cursor-pointer"
+                  >
+                    Hide Form
+                  </button>
+                </div>
+
+                <StudentSchemaAdmissionForm
+                  mode="re-admission"
+                  actor="public"
+                  academicClasses={effectiveClasses}
+                  subjects={subjects}
+                  instituteRules={instituteRules}
+                  admissionFormConfig={admissionFormConfig}
+                  mfsConfig={mfsConfig}
+                  prefillStudent={lookupResult.prefill}
+                  reAdmissionContext={lookupResult.reAdmissionState}
+                  linkedStudentId={lookupResult.prefill.id}
+                  onSuccess={(res) => {
+                    void refreshFromServer();
+                    setShowReAdmissionForm(false);
+                    setLookupResult((prev) =>
+                      prev
+                        ? {
+                            ...prev,
+                            reAdmissionState: {
+                              ...prev.reAdmissionState!,
+                              status: 'Submitted',
+                              applicationId: res.application.id,
+                            },
+                            existingApplication: res.application,
+                            existingInvoice: res.invoice,
+                          }
+                        : null
+                    );
+                    setSlipModal({
+                      application: res.application,
+                      invoice: res.invoice,
+                    });
+                  }}
+                />
+              </div>
+            )}
         </section>
+      )}
+
+      {/* MODE 3: TRACK & PRINT SLIP / DUAL RECEIPT */}
+      {portalMode === 'track' && (
+        <section className="space-y-6 no-print">
+          <form
+            onSubmit={handleTrackLookup}
+            className="rounded-3xl bg-white border border-outline-variant/25 p-6 sm:p-8 space-y-5 shadow-xs"
+          >
+            <div className="border-b border-outline-variant/20 pb-3">
+              <h2 className="text-lg font-bold text-on-surface flex items-center gap-2">
+                <FileSearch className="w-5 h-5 text-primary-container" />
+                Track Application &amp; Reprint Official Slips
+              </h2>
+              <p className="text-xs text-on-surface-variant mt-0.5">
+                Enter your Application Code (e.g. APP-8901) along with your registered Mobile Number or Date of Birth to print your Application Form or Half-and-Half Dual-Copy Money Receipt.
+              </p>
+            </div>
+
+            {trackError && (
+              <div className="p-3.5 rounded-xl bg-error-container border border-error/30 text-on-error-container text-xs font-semibold flex items-center gap-2">
+                <AlertCircle className="w-4 h-4 shrink-0" />
+                <span>{trackError}</span>
+              </div>
+            )}
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5 text-xs items-end">
+              <div>
+                <label className="block font-semibold text-on-surface mb-1">
+                  Application Code *
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={trackCode}
+                  onChange={(e) => setTrackCode(e.target.value.toUpperCase())}
+                  placeholder="e.g. APP-8901"
+                  className="w-full px-3 py-2.5 rounded-xl bg-surface-container-low border border-outline-variant/40 text-sm font-mono font-bold uppercase"
+                />
+              </div>
+
+              <div>
+                <label className="block font-semibold text-on-surface mb-1">
+                  Registered Mobile
+                </label>
+                <input
+                  type="tel"
+                  value={trackPhone}
+                  onChange={(e) => setTrackPhone(e.target.value)}
+                  placeholder="01XXXXXXXXX"
+                  className="w-full px-3 py-2.5 rounded-xl bg-surface-container-low border border-outline-variant/40 text-sm font-mono tabular-nums"
+                />
+              </div>
+
+              <div>
+                <label className="block font-semibold text-on-surface mb-1">
+                  Or Date of Birth
+                </label>
+                <input
+                  type="text"
+                  value={trackDob}
+                  onChange={(e) => setTrackDob(autoFormatDDMMYYYYInput(e.target.value))}
+                  placeholder="DD/MM/YYYY"
+                  className="w-full px-3 py-2.5 rounded-xl bg-surface-container-low border border-outline-variant/40 text-sm font-mono tabular-nums"
+                />
+              </div>
+
+              <div>
+                <button
+                  type="submit"
+                  disabled={trackLoading}
+                  className="w-full py-2.5 px-4 rounded-xl bg-primary-container hover:bg-primary disabled:opacity-50 text-on-primary text-xs font-bold inline-flex items-center justify-center gap-2 cursor-pointer"
+                >
+                  <Search className="w-4 h-4" />
+                  {trackLoading ? 'Locating...' : 'Find Application'}
+                </button>
+              </div>
+            </div>
+          </form>
+
+          {trackedResult && (
+            <div className="rounded-3xl bg-white border border-outline-variant/25 p-6 flex flex-col md:flex-row md:items-center justify-between gap-4 shadow-xs text-xs">
+              <div className="space-y-1">
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="font-mono font-bold text-primary-container text-sm">
+                    {trackedResult.application.applicationCode}
+                  </span>
+                  <span className="px-2 py-0.5 rounded bg-surface-container font-bold">
+                    {trackedResult.application.applicationType === 're-admission'
+                      ? 'Re-admission'
+                      : 'New Admission'}
+                  </span>
+                  <span className="px-2 py-0.5 rounded bg-emerald-50 text-emerald-900 font-bold border border-emerald-200">
+                    {trackedResult.application.status}
+                  </span>
+                </div>
+                <h3 className="text-base font-bold text-on-surface">
+                  {trackedResult.application.applicantName}
+                </h3>
+                <p className="text-on-surface-variant">
+                  Class: <strong>{trackedResult.application.assignedClass || trackedResult.application.grade}</strong>{' '}
+                  &bull; Year:{' '}
+                  <strong className="font-mono">
+                    {trackedResult.application.targetAcademicYear || 'Current'}
+                  </strong>{' '}
+                  &bull; Payment:{' '}
+                  <strong>
+                    {trackedResult.invoice?.status ||
+                      trackedResult.application.paymentSummary?.paymentStatus ||
+                      'Recorded'}
+                  </strong>
+                </p>
+              </div>
+
+              <div className="flex flex-wrap items-center gap-2 shrink-0">
+                <button
+                  type="button"
+                  onClick={() => setSlipModal(trackedResult)}
+                  className="inline-flex items-center gap-1.5 px-4 py-2.5 rounded-xl bg-primary-container hover:bg-primary text-on-primary text-xs font-bold cursor-pointer"
+                >
+                  <FileText className="w-4 h-4" />
+                  Print A4 Slip
+                </button>
+                {(trackedResult.invoice ||
+                  (trackedResult.application.paymentSummary?.feeAmount || 0) > 0) && (
+                  <button
+                    type="button"
+                    onClick={() => setReceiptModal(trackedResult)}
+                    className="inline-flex items-center gap-1.5 px-4 py-2.5 rounded-xl bg-secondary hover:bg-secondary/90 text-on-secondary text-xs font-bold cursor-pointer"
+                  >
+                    <Receipt className="w-4 h-4" />
+                    Print Dual-Copy Receipt
+                  </button>
+                )}
+              </div>
+            </div>
+          )}
+        </section>
+      )}
+
+      {/* A4 APPLICATION SLIP MODAL */}
+      {slipModal && (
+        <AdmissionApplicationSlipModal
+          cmsConfig={cmsConfig}
+          admissionFormConfig={admissionFormConfig}
+          application={slipModal.application}
+          invoice={slipModal.invoice}
+          onClose={() => setSlipModal(null)}
+          onOpenReceipt={() => {
+            setReceiptModal(slipModal);
+            setSlipModal(null);
+          }}
+        />
+      )}
+
+      {/* DUAL-COPY A4 RECEIPT MODAL */}
+      {receiptModal && (
+        <DualCopyPaymentReceiptModal
+          cmsConfig={cmsConfig}
+          invoice={receiptModal.invoice}
+          application={receiptModal.application}
+          onClose={() => setReceiptModal(null)}
+          onViewSlip={() => {
+            setSlipModal(receiptModal);
+            setReceiptModal(null);
+          }}
+        />
       )}
     </div>
   );

@@ -201,6 +201,33 @@ export type StudentFieldSection = 'photo' | 'academic' | 'personal' | 'parents' 
 
 export type PromotionMode = 'merit' | 'keep-roll' | 'direct' | 'manual';
 
+export type StudentReAdmissionStatus =
+  | 'None'
+  | 'Pending Re-admission'
+  | 'Submitted'
+  | 'Completed';
+
+export interface StudentReAdmissionState {
+  status: StudentReAdmissionStatus;
+  sourceAcademicYear: string;
+  sourceClassName: string;
+  sourceSectionName: string;
+  sourceGroup: AcademicGroup;
+  sourceRollNumber: number;
+  targetAcademicYear: string;
+  targetClassName: string;
+  targetSectionName: string;
+  targetGroup: AcademicGroup;
+  targetShift: ShiftType;
+  targetRollNumber: number;
+  examId?: string;
+  examTitle?: string;
+  gpa?: number;
+  promotedAt: string;
+  applicationId?: string;
+  completedAt?: string;
+}
+
 export interface StudentPromotionRecord {
   fromClass: string;
   toClass: string;
@@ -210,6 +237,7 @@ export interface StudentPromotionRecord {
   toGroup?: AcademicGroup;
   fromRoll?: number;
   toRoll?: number;
+  academicYear?: string;
   mode: PromotionMode;
   examId?: string;
   examTitle?: string;
@@ -338,6 +366,7 @@ export interface Student {
   systemPin?: string;
   customFields?: Record<string, string>;
   promotionHistory?: StudentPromotionRecord[];
+  reAdmissionState?: StudentReAdmissionState;
   updateRequest?: Partial<Student>;
   updateRequestStatus?: 'Pending' | 'Approved' | 'Rejected';
   updateRequestRejectionReason?: string;
@@ -357,7 +386,10 @@ export interface PromotionPayload {
   targetClass: string;
   targetSection: string;
   targetGroup?: AcademicGroup;
+  sourceAcademicYear?: string;
+  targetAcademicYear?: string;
   targetCycle?: string;
+  requireReAdmission?: boolean;
   mode: 'merit' | 'keep-roll' | 'direct';
   examId?: string;
   examTitle?: string;
@@ -422,6 +454,11 @@ export type ClassCycleType = 'Academic Year' | 'Academic Session';
 
 export type ClassSectionMode = 'shared' | 'per-group';
 
+export interface AdmissionFeeItem {
+  label: string;
+  amount: number;
+}
+
 export interface AcademicClass {
   id: string;
   name: string;
@@ -437,6 +474,13 @@ export interface AcademicClass {
   groups: AcademicGroup[];
   monthlyFee?: number;
   admissionFee?: number;
+  openForNewAdmission?: boolean;
+  openForReAdmission?: boolean;
+  newAdmissionFee?: number;
+  reAdmissionFee?: number;
+  admissionFeeBreakdown?: AdmissionFeeItem[];
+  admissionSeatLimit?: number;
+  intakeYear?: string;
 }
 
 export interface RoutinePeriodSlot {
@@ -879,25 +923,79 @@ export interface Notice {
   attachmentPublicId?: string;
 }
 
+export interface AdmissionPaymentSummary {
+  feeAmount: number;
+  paidAmount: number;
+  feeBreakdown?: AdmissionFeeItem[];
+  paymentChannel: 'Cash' | 'bKash' | 'Nagad' | 'Rocket' | 'Online MFS' | 'Waived';
+  trxId?: string;
+  senderPhone?: string;
+  paymentStatus: 'Not Required' | 'Pending Verification' | 'Paid';
+  invoiceId?: string;
+  receiptNo?: string;
+  paidAt?: string;
+  verifiedBy?: string;
+  smsNotifiedAt?: string;
+}
+
 export interface AdmissionApplication {
   id: string;
   applicantName: string;
   applicantInitials: string;
   applicationCode: string;
+  applicationType?: 'new' | 're-admission';
+  targetAcademicYear?: string;
+  linkedStudentId?: string;
+  linkedSystemId?: string;
+  previousYear?: string;
+  previousClass?: string;
+  previousSection?: string;
+  previousRoll?: number;
   grade: string;
   appliedTime: string;
   score: string;
   status: 'Approved' | 'Under Review' | 'Pending' | 'Admitted';
   gender?: GenderType;
+  banglaName?: string;
+  dateOfBirth?: string;
+  bloodGroup?: string;
+  birthRegOrNid?: string;
+  shift?: ShiftType;
+  sectionName?: string;
+  avatarUrl?: string;
+  avatarPublicId?: string;
   fatherName?: string;
+  fatherBanglaName?: string;
+  fatherNid?: string;
+  fatherPhone?: string;
+  fatherOccupation?: string;
   motherName?: string;
+  motherBanglaName?: string;
+  motherNid?: string;
+  motherPhone?: string;
+  motherOccupation?: string;
+  hasLocalGuardian?: boolean;
+  guardianName?: string;
+  guardianRelation?: string;
+  guardianPhone?: string;
   phone?: string;
+  presentAddress?: string;
+  permanentAddress?: string;
+  presentAddressDetail?: StructuredAddress;
+  permanentAddressDetail?: StructuredAddress;
+  sameAsPresentAddress?: boolean;
+  previousInstitute?: string;
+  previousGpa?: string;
   religionGroup?: ReligionGroup;
   group?: AcademicGroup;
+  electiveSubjectIds?: string[];
+  optionalFourthSubjectId?: string;
   assignedClass?: string;
   assignedSection?: string;
   assignedRoll?: number;
+  customFields?: Record<string, string>;
   customAnswers?: Record<string, string>;
+  paymentSummary?: AdmissionPaymentSummary;
 }
 
 export interface AdmissionFormConfig {
@@ -946,16 +1044,21 @@ export interface StudentInvoice {
   sectionName: string;
   month: string;
   academicYear: string;
+  feeCategory?: 'Tuition' | 'Admission' | 'Re-admission' | 'Other';
+  applicationId?: string;
+  feeBreakdown?: AdmissionFeeItem[];
   totalPayable: number;
   paidAmount: number;
   status: 'Paid' | 'Partial' | 'Unpaid';
   paymentMethod?: 'Cash' | 'bKash' | 'Nagad' | 'Rocket' | 'Bank';
   transactionId?: string;
   paymentDate?: string;
+  smsNotifiedAt?: string;
 }
 
 export interface MfsGatewayConfig {
   defaultMonthlyFee: number;
+  onlineCheckoutMode?: 'manual-trx' | 'gateway-api';
   bkash: { enabled: boolean; merchantNumber: string; appKey: string; mode: 'Sandbox' | 'Live' };
   nagad: { enabled: boolean; merchantNumber: string; merchantId: string; mode: 'Sandbox' | 'Live' };
   rocket: { enabled: boolean; merchantNumber: string; billerId: string; mode: 'Sandbox' | 'Live' };
