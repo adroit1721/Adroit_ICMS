@@ -654,9 +654,9 @@ export default function StudentSchemaAdmissionForm({
   };
 
   const presentDistricts = getDistrictsByDivision(presentDetail.division);
-  const presentUpazilas = getUpazilasByDistrict(presentDetail.district);
+  const presentUpazilas = getUpazilasByDistrict(presentDetail.division, presentDetail.district);
   const permanentDistricts = getDistrictsByDivision(permanentDetail.division);
-  const permanentUpazilas = getUpazilasByDistrict(permanentDetail.district);
+  const permanentUpazilas = getUpazilasByDistrict(permanentDetail.division, permanentDetail.district);
 
   return (
     <form onSubmit={handleSubmit} className="space-y-6 text-xs">
@@ -1359,8 +1359,8 @@ export default function StudentSchemaAdmissionForm({
                 >
                   <option value="">District</option>
                   {presentDistricts.map((d) => (
-                    <option key={d.name} value={d.name}>
-                      {d.name}
+                    <option key={d} value={d}>
+                      {d}
                     </option>
                   ))}
                 </select>
@@ -1432,8 +1432,8 @@ export default function StudentSchemaAdmissionForm({
                 >
                   <option value="">District</option>
                   {permanentDistricts.map((d) => (
-                    <option key={d.name} value={d.name}>
-                      {d.name}
+                    <option key={d} value={d}>
+                      {d}
                     </option>
                   ))}
                 </select>
