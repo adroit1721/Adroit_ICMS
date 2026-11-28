@@ -129,13 +129,15 @@ export default function StudentPortalPage() {
     }
   }, [isHydrated, student, router]);
 
+  const compiledResultId = compiledResult?.id;
+  const compiledResultSystemId = compiledResult?.systemId;
   useEffect(() => {
-    if (compiledResult && typeof window !== 'undefined') {
+    if (compiledResultId && compiledResultSystemId && typeof window !== 'undefined') {
       generateQrDataUrl(
-        `${window.location.origin}/academics?verify=${compiledResult.id}&sysId=${compiledResult.systemId}`
+        `${window.location.origin}/academics?verify=${compiledResultId}&sysId=${compiledResultSystemId}`
       ).then(setQrCodeUrl);
     }
-  }, [compiledResult?.id, compiledResult?.systemId]);
+  }, [compiledResultId, compiledResultSystemId]);
 
   if (!isHydrated) {
     return (

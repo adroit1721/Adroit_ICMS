@@ -391,34 +391,26 @@ export default function StudentSchemaAdmissionForm({
     ? selectedClassObj.shifts
     : ['Morning', 'Day'];
 
-  const fourthSubjectPool = useMemo(
-    () =>
-      sortSubjectsByOrder(
-        subjects.filter(
-          (s) =>
-            s.canBeFourthSubject &&
-            s.classLevel === grade &&
-            subjectAppliesToGroup(s, effectiveGroup) &&
-            isStudentGenderEligibleForSubject(s, gender)
-        )
-      ),
-    [subjects, grade, effectiveGroup, gender]
+  const fourthSubjectPool = sortSubjectsByOrder(
+    subjects.filter(
+      (s) =>
+        s.canBeFourthSubject &&
+        s.classLevel === grade &&
+        subjectAppliesToGroup(s, effectiveGroup) &&
+        isStudentGenderEligibleForSubject(s, gender)
+    )
   );
 
-  const electivePool = useMemo(
-    () =>
-      sortSubjectsByOrder(
-        subjects.filter(
-          (s) =>
-            !s.isCompulsory &&
-            !s.excludeFromGpa &&
-            !s.religionRestriction &&
-            s.classLevel === grade &&
-            subjectAppliesToGroup(s, effectiveGroup) &&
-            isStudentGenderEligibleForSubject(s, gender)
-        )
-      ),
-    [subjects, grade, effectiveGroup, gender]
+  const electivePool = sortSubjectsByOrder(
+    subjects.filter(
+      (s) =>
+        !s.isCompulsory &&
+        !s.excludeFromGpa &&
+        !s.religionRestriction &&
+        s.classLevel === grade &&
+        subjectAppliesToGroup(s, effectiveGroup) &&
+        isStudentGenderEligibleForSubject(s, gender)
+    )
   );
 
   const handleClassChange = (nextClassName: string) => {

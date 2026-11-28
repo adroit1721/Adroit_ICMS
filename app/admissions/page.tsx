@@ -111,16 +111,19 @@ function AdmissionsContent() {
   } | null>(null);
 
   useEffect(() => {
-    if (typeof window === 'undefined') return;
-    const params = new URLSearchParams(window.location.search);
-    const code = params.get('code');
-    const mode = params.get('mode');
-    if (code) {
-      setPortalMode('track');
-      setTrackCode(code.toUpperCase());
-    } else if (mode === 're-admission') {
-      setPortalMode('re-admission');
-    }
+    const timer = setTimeout(() => {
+      if (typeof window === 'undefined') return;
+      const params = new URLSearchParams(window.location.search);
+      const code = params.get('code');
+      const mode = params.get('mode');
+      if (code) {
+        setPortalMode('track');
+        setTrackCode(code.toUpperCase());
+      } else if (mode === 're-admission') {
+        setPortalMode('re-admission');
+      }
+    }, 0);
+    return () => clearTimeout(timer);
   }, []);
 
   const handleReAdmissionLookup = async (e: React.FormEvent) => {
